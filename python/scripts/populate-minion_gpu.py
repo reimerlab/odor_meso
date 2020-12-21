@@ -1,5 +1,5 @@
 #!/usr/local/bin/python3
-from pipeline import stack, pupil, experiment
+from . import stack, pupil, experiment
 
 
 # 3-d segmentation
