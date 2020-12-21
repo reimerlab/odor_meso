@@ -4,7 +4,7 @@ import os
 import datajoint as dj
 import numpy as np
 
-from . import mouse, meso, lab
+from . import mice, meso, lab
 from .utils import h5
 from .exceptions import PipelineException
 
@@ -40,7 +40,7 @@ class OdorSolution(dj.Manual):
 @schema
 class OdorSession(dj.Manual):
     definition = """ # Single session of olfactory experiment.
-    -> mouse.Mouse
+    -> mice.Mice
     odor_session                : smallint unsigned    # session index for the mouse
     ---
     odor_path                   : varchar(2048)        # folder where h5 files for olfaction are stored

@@ -4,10 +4,10 @@ DO NOT create new tables here.
 """
 
 import datajoint as dj
-schema = dj.schema('pipeline_mouse')
+schema = dj.schema('pipeline_mice')
 
 @schema
-class Mouse(dj.Manual):
+class Mice(dj.Manual):
     definition = """  # calcium-sensitive indicators
           animal_id           : int                                            # id number
           ---
@@ -17,9 +17,9 @@ class Mouse(dj.Manual):
           sex="unknown"       : enum('M','F','unknown')                        # animal's sex
           color="unknown"     : enum('Black','Brown','White','unknown')        # animal's color
           ear_punch="unknown" : enum('None','R','L','RL','RR','LL','unknown')  # animal's ear punch
-          owner="none"        : enum('Jake','Manolis','Xiaolong','Dimitri','Shan','Keith','Cathryn','Deumani','Matt','Megan','Paul','Shuang','Other','Available','none') # mouse's owner
+          owner="none"        : enum('Federico','Fabian','Jiakun','Jake','Manolis','Xiaolong','Dimitri','Shan','Keith','Cathryn','Deumani','Matt','Megan','Paul','Shuang','Other','Available','none') # mouse's owner
           facility="unknown"  : enum('TMF','Taub','Other','unknown')           # animal's curent facility 
-          room="unknown"      : enum('VD4','T014','T057','T086D','Other','unknown') # animal's current room 
+          room="unknown"      : enum('VH1','T027','VK3','VD4','T014','T057','T086D','Other','unknown') # animal's current room 
           rack=null           : tinyint                                        # animal's curent rack 
           row=null              : tinyint#char,""                                           # animal's curent row
 

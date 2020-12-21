@@ -1,7 +1,7 @@
 """ Schemas for viral injections """
 import numpy as np
 import datajoint as dj
-from . import mouse
+from . import mice
 from .exceptions import PipelineException
 
 
@@ -25,7 +25,7 @@ class Target(dj.Lookup):
 class InjectionSession(dj.Manual):
     definition = """
     # Injection Session
-    -> mouse.Mouse
+    -> mice.Mice
     injection_session=1           : tinyint unsigned                    # injection session index
     injection_datetime            : datetime                            # time of injection 'YYYY-MM-DD HH:MM:SS' 
     ---

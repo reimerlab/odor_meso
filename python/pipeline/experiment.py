@@ -1,6 +1,6 @@
 import datajoint as dj
 import pandas as pd
-from . import mouse, lab
+from . import mice, lab
 import numpy as np
 import os
 
@@ -338,7 +338,7 @@ class SurgeryOutcome(dj.Lookup):
 @schema
 class Surgery(dj.Manual):
     definition = """ # surgeries performed on mice
-    -> mouse.Mouse
+    -> mice.Mice
     surgery_id                   : smallint               # Unique number given to each surgery
     ---
     date                         : date                   # YYYY-MM-DD Format. Date surgery was performed
@@ -373,7 +373,7 @@ class SurgeryStatus(dj.Manual):
 class Session(dj.Manual):
     definition = """  # imaging session
 
-    -> mouse.Mouse
+    -> mice.Mice
     session                      : smallint            # session index for the mouse
     ---
     -> Rig
