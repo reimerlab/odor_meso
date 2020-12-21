@@ -413,6 +413,13 @@ class Session(dj.Manual):
         -> PMTFilterSet
         """
 
+@schema
+class ExperimentalIdentifier(dj.Manual):
+    definition = """
+    experiment_id        : int auto_increment
+    ---
+    -> [unique] Session
+    """
 
 @schema
 class Aim(dj.Lookup):
