@@ -347,6 +347,22 @@ def _greedyROI(scan, num_components=200, neuron_size=(11, 11),
     return masks, traces, background_masks, background_traces
 
 
+def bivariate_normal(X, Y, sigmax=1.0, sigmay=1.0,
+                     mux=0.0, muy=0.0, sigmaxy=0.0):
+    """
+    Bivariate Gaussian distribution for equal shape *X*, *Y*.
+    See `bivariate normal
+    <http://mathworld.wolfram.com/BivariateNormalDistribution.html>`_
+    at mathworld.
+    """
+    Xmu = X-mux
+    Ymu = Y-muy
+
+    rho = sigmaxy/(sigmax*sigmay)
+    z = Xmu**2/sigmax**2 + Ymu**2/sigmay**2 - 2*rho*Xmu*Ymu/(sigmax*sigmay)
+    denom = 2*np.pi*sigmax*sigmay*np.sqrt(1-rho**2)
+    return np.exp(-z/(2*(1-rho**2))) / denom
+
 def _gaussian2d(stddev, truncate=4):
     """ Creates a 2-d gaussian kernel truncated at 4 standard deviations (8 in total).
 
@@ -359,7 +375,7 @@ def _gaussian2d(stddev, truncate=4):
     half_kernel = np.round(stddev * truncate) # kernel_size = 2 * half_kernel + 1
     y, x = np.meshgrid(np.arange(-half_kernel[0], half_kernel[0] + 1),
                        np.arange(-half_kernel[1], half_kernel[1] + 1))
-    kernel = mlab.bivariate_normal(x, y, sigmay=stddev[0], sigmax=stddev[1])
+    kernel = bivariate_normal(x, y, sigmay=stddev[0], sigmax=stddev[1])
     return kernel
 
 
