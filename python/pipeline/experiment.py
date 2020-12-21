@@ -646,4 +646,14 @@ class ProjectorSetup(dj.Lookup):
     target_distance     : float         # distance from mouse to the display in cm
     """
 
-
+@schema
+class TreadmillSpecs(dj.Lookup):
+    definition = """
+    # methods for extraction from raw data for either AOD or Galvo data
+    -> Rig
+    treadmill_start_date            : date              # first day in use on this rig
+    ---
+    diameter                        : float             # treadmill diameter where mouse sits in cm
+    counts_per_revolution = 8000    : int               # number of encoder counts per treadmill revolution
+    treadmill_notes                 : varchar(255)      # additional info about treadmill
+    """
