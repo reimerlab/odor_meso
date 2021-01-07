@@ -6,8 +6,15 @@ WORKDIR /data
 # Upgrade datajoint
 RUN pip3 install --upgrade datajoint~=0.12.7
 
-# Install pipeline
-COPY . /data/pipeline
-RUN pip3 install -e pipeline/python/
+# Upgrade pip
+RUN pip3 install --upgrade pip
+               
+# Install odor_meso
+COPY ./odor_meso /data/odor_meso
+RUN pip3 install -e /data/odor_meso/python/
+
+# Install DataPlot
+ADD ./DataPlot /data/DataPlot
+RUN pip3 install -e /data/DataPlot
 
 ENTRYPOINT ["/bin/bash"]

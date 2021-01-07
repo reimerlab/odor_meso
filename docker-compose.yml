@@ -2,14 +2,16 @@ version: '2.0'
 
 services:
   notebook:
-    build: .
+    build:
+      context: ../
+      dockerfile: ./odor_meso/Dockerfile
     ports:
       - "8888:8888"
     volumes:
       # - /mnt/:/mnt/
       # - /home/pipeline_data/:/tmp/
-      - .:/data/pipeline/
-      - ../commons:/data/commons
+      - .:/data/odor_meso/
+      - ../DataPlot:/data/DataPlot/
       - ${EXTERNAL_MOUNT:-./external}:/external
     env_file: .env
     entrypoint:
@@ -26,7 +28,7 @@ services:
     volumes:
       # - /mnt/:/mnt/
       # - /home/pipeline_data:/tmp/
-      - .:/data/pipeline
+      - .:/data/odor_meso
     env_file: .env
     entrypoint:
       - python3 
@@ -39,7 +41,7 @@ services:
     volumes:
       #- /mnt/:/mnt/
       #- /home/pipeline_data:/tmp/
-      - .:/data/pipeline
+      - .:/data/odor_meso
     env_file: .env
     entrypoint:
       - python3 
@@ -50,7 +52,7 @@ services:
     volumes:
       #- /mnt/:/mnt/
       #- /home/pipeline_data/:/tmp/
-      - .:/data/pipeline
+      - .:/data/odor_meso
       # this line allows local timezone of host to be
       # reflected inside Docker
       - /etc/localtime:/etc/localtime:ro
