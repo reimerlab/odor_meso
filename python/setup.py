@@ -8,14 +8,14 @@ long_description = "Datajoint schemata and analysis code for the mouse pipeline.
 
 
 setup(
-    name='pipeline',
+    name='odor_meso',
     version='0.2.0',
     description="data processing chain for MICrONS project team ninai",
     long_description=long_description,
     author='Fabian Sinz, Dimitri Yatsenko, Erick Cobos',
     author_email='sinz@bcm.edu',
     license="GNU LGPL",
-    url='https://github.com/cajal/pipeline',
+    url='https://github.com/reimerlab/odor_meso',
     keywords='neuroscientific data processing',
     packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
     install_requires=['numpy', 'scipy', 'matplotlib', 'pandas', 'seaborn',
