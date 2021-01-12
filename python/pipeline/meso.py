@@ -117,7 +117,7 @@ class ScanInfo(dj.Imported):
         tuple_['usecs_per_line'] = scan.seconds_per_line * 1e6
         tuple_['fill_fraction'] = scan.temporal_fill_fraction
         tuple_['nrois'] = scan.num_rois
-        tuple_['valid_depth'] = True
+        # tuple_['valid_depth'] = True
 
         # Insert in ScanInfo
         self.insert1(tuple_)
@@ -580,6 +580,245 @@ class MotionCorrection(dj.Computed):
 
 
 @schema
+class Stitching(dj.Computed):
+    definition = """ # stitches together overlapping rois
+
+    -> StackInfo
+    """
+
+    @property
+    def key_source(self):
+        return StackInfo() - (StackInfo.ROI() - MotionCorrection())  # run iff all ROIs have been processed
+
+    class Volume(dj.Part):
+        definition = """ # union of ROIs from a stack (usually one volume per stack)
+
+        -> Stitching
+        volume_id       : tinyint       # id of this volume
+        """
+
+    class ROICoordinates(dj.Part):
+        definition = """ # coordinates for each ROI in the stitched volume
+
+        -> Stitching                    # animal_id, session, stack_idx, version
+        -> MotionCorrection             # animal_id, session, stack_idx, version, roi_id
+        ---
+        -> Stitching.Volume             # volume to which this ROI belongs
+        stitch_ys        : blob         # (px) center of each slice in a volume-wise coordinate system
+        stitch_xs        : blob         # (px) center of each slice in a volume-wise coordinate system
+        """
+
+    def _make_tuples(self, key):
+        """ Stitch overlapping ROIs together and correct slice-to-slice alignment.
+
+        Iteratively stitches two overlapping ROIs if the overlapping dimension has the
+        same length (up to some relative tolerance). Stitching params are calculated per
+        slice.
+
+        Edge case: when two overlapping ROIs have different px/micron resolution
+            They won't be joined even if true height are the same (as pixel heights will
+            not match) or pixel heights could happen to match even if true heights are
+            different and thus they'll be erroneously stitched.
+        """
+        print('Stitching ROIs for stack', key)
+
+        # Get some params
+        correction_channel = (CorrectionChannel() & key).fetch1('channel') - 1
+
+        # Read and correct ROIs forming this stack
+        print('Correcting ROIs...')
+        rois = []
+        for roi_tuple in (StackInfo.ROI() & key).fetch():
+            # Load ROI
+            roi_filename = (experiment.Stack.Filename() &
+                            roi_tuple).local_filenames_as_wildcard
+            roi = scanreader.read_scan('/data/odor_meso/' + roi_filename)
+
+            # Map: Apply corrections to each field in parallel
+            f = performance.parallel_correct_stack  # function to map
+            raster_phase = (RasterCorrection() & roi_tuple).fetch1('raster_phase')
+            fill_fraction = (StackInfo() & roi_tuple).fetch1('fill_fraction')
+            y_shifts, x_shifts = (MotionCorrection() & roi_tuple).fetch1('y_shifts',
+                                                                         'x_shifts')
+            field_ids = roi_tuple['field_ids']
+            results = performance.map_fields(f, roi, field_ids=field_ids,
+                                             channel=correction_channel,
+                                             kwargs={'raster_phase': raster_phase,
+                                                     'fill_fraction': fill_fraction,
+                                                     'y_shifts': y_shifts,
+                                                     'x_shifts': x_shifts,
+                                                     'apply_anscombe': True})
+
+            # Reduce: Collect results
+            corrected_roi = np.empty((roi_tuple['roi_px_depth'],
+                                      roi_tuple['roi_px_height'],
+                                      roi_tuple['roi_px_width']), dtype=np.float32)
+            for field_idx, corrected_field in results:
+                corrected_roi[field_idx] = corrected_field
+
+            # Create ROI object
+            um_per_px = (StackInfo.ROI() & (StackInfo.ROI().proj() &
+                                            roi_tuple)).microns_per_pixel
+            px_z, px_y, px_x = np.array([roi_tuple['roi_{}'.format(dim)] for dim in
+                                         ['z', 'y', 'x']]) / um_per_px
+            rois.append(stitching.StitchedROI(corrected_roi, x=px_x, y=px_y, z=px_z,
+                                              id_=roi_tuple['roi_id']))
+
+        def enhance(image, sigmas):
+            """ Enhance 2p image. See enhancement.py for details."""
+            return enhancement.sharpen_2pimage(enhancement.lcn(image, sigmas))
+
+        def join_rows(rois_):
+            """ Iteratively join all rois that overlap in the same row."""
+            sorted_rois = sorted(rois_, key=lambda roi: (roi.x, roi.y))
+
+            prev_num_rois = float('inf')
+            while len(sorted_rois) < prev_num_rois:
+                prev_num_rois = len(sorted_rois)
+
+                for left, right in itertools.combinations(sorted_rois, 2):
+                    if left.is_aside_to(right):
+                        roi_key = {**key, 'roi_id': left.roi_coordinates[0].id}
+                        um_per_px = (StackInfo.ROI() & roi_key).microns_per_pixel
+
+                        # Compute stitching shifts
+                        neighborhood_size = 25 / um_per_px[1:]
+                        left_ys, left_xs = [], []
+                        for l, r in zip(left.slices, right.slices):
+                            left_slice = enhance(l.slice, neighborhood_size)
+                            right_slice = enhance(r.slice, neighborhood_size)
+                            delta_y, delta_x = stitching.linear_stitch(left_slice,
+                                                                       right_slice,
+                                                                       r.x - l.x)
+                            left_ys.append(r.y - delta_y)
+                            left_xs.append(r.x - delta_x)
+
+                        # Fix outliers
+                        max_y_shift, max_x_shift = 10 / um_per_px[1:]
+                        left_ys, left_xs, _ = galvo_corrections.fix_outliers(
+                            np.array(left_ys), np.array(left_xs), max_y_shift,
+                            max_x_shift, method='linear')
+
+                        # Stitch together
+                        right.join_with(left, left_xs, left_ys)
+                        sorted_rois.remove(left)
+                        break  # restart joining
+
+            return sorted_rois
+
+        # Stitch overlapping rois recursively
+        print('Computing stitching parameters...')
+        prev_num_rois = float('Inf')  # to enter the loop at least once
+        while len(rois) < prev_num_rois:
+            prev_num_rois = len(rois)
+
+            # Join rows
+            rois = join_rows(rois)
+
+            # Join columns
+            [roi.rot90() for roi in rois]
+            rois = join_rows(rois)
+            [roi.rot270() for roi in rois]
+
+        # Compute slice-to slice alignment
+        print('Computing slice-to-slice alignment...')
+        for roi in rois:
+            big_volume = roi.volume
+            num_slices, image_height, image_width = big_volume.shape
+            roi_key = {**key, 'roi_id': roi.roi_coordinates[0].id}
+            um_per_px = (StackInfo.ROI() & roi_key).microns_per_pixel
+
+            # Enhance
+            neighborhood_size = 25 / um_per_px[1:]
+            for i in range(num_slices):
+                big_volume[i] = enhance(big_volume[i], neighborhood_size)
+
+            # Drop 10% of the image borders
+            skip_rows = int(round(image_height * 0.1))
+            skip_columns = int(round(image_width * 0.1))
+            big_volume = big_volume[:, skip_rows:-skip_rows, skip_columns: -skip_columns]
+
+            y_aligns = np.zeros(num_slices)
+            x_aligns = np.zeros(num_slices)
+            for i in range(1, num_slices):
+                # Align current slice to previous one
+                y_aligns[i], x_aligns[i] = galvo_corrections.compute_motion_shifts(
+                    big_volume[i], big_volume[i - 1], in_place=False)
+
+            # Fix outliers
+            max_y_shift, max_x_shift = 15 / um_per_px[1:]
+            y_fixed, x_fixed, _ = galvo_corrections.fix_outliers(y_aligns, x_aligns,
+                                                                 max_y_shift, max_x_shift)
+
+            # Accumulate shifts so shift i is shift in i -1 plus shift to align i to i-1
+            y_cumsum, x_cumsum = np.cumsum(y_fixed), np.cumsum(x_fixed)
+
+            # Detrend to discard influence of vessels going through the slices
+            filter_size = int(round(60 / um_per_px[0]))  # 60 microns in z
+            filter_size += 1 if filter_size % 2 == 0 else 0
+            if len(y_cumsum) > filter_size:
+                smoothing_filter = signal.hann(filter_size)
+                smoothing_filter /= sum(smoothing_filter)
+                y_detrend = y_cumsum - mirrconv(y_cumsum, smoothing_filter)
+                x_detrend = x_cumsum - mirrconv(x_cumsum, smoothing_filter)
+            else:
+                y_detrend = y_cumsum - y_cumsum.mean()
+                x_detrend = x_cumsum - x_cumsum.mean()
+
+            # Apply alignment shifts in roi
+            for slice_, y_align, x_align in zip(roi.slices, y_detrend, x_detrend):
+                slice_.y -= y_align
+                slice_.x -= x_align
+            for roi_coord in roi.roi_coordinates:
+                roi_coord.ys = [prev_y - y_align for prev_y, y_align in zip(roi_coord.ys,
+                                                                            y_detrend)]
+                roi_coord.xs = [prev_x - x_align for prev_x, x_align in zip(roi_coord.xs,
+                                                                            x_detrend)]
+
+        # Insert in Stitching
+        print('Inserting...')
+        self.insert1(key)
+
+        # Insert each stitched volume
+        for volume_id, roi in enumerate(rois, start=1):
+            self.Volume().insert1({**key, 'volume_id': volume_id})
+
+            # Insert coordinates of each ROI forming this volume
+            for roi_coord in roi.roi_coordinates:
+                tuple_ = {**key, 'roi_id': roi_coord.id, 'volume_id': volume_id,
+                          'stitch_xs': roi_coord.xs, 'stitch_ys': roi_coord.ys}
+                self.ROICoordinates().insert1(tuple_)
+
+        self.notify(key)
+
+    @notify.ignore_exceptions
+    def notify(self, key):
+        slack_user = (notify.SlackUser() & (experiment.Session() & key))
+        for volume_key in (self.Volume() & key).fetch('KEY'):
+            for roi_coord in (self.ROICoordinates() & volume_key).fetch(as_dict=True):
+                center_z, num_slices, um_depth = (StackInfo.ROI() & roi_coord).fetch1(
+                    'roi_z', 'roi_px_depth', 'roi_um_depth')
+                first_z = center_z - um_depth / 2 + (um_depth / num_slices) / 2
+                depths = first_z + (um_depth / num_slices) * np.arange(num_slices)
+
+                fig, axes = plt.subplots(2, 1, figsize=(15, 8), sharex=True)
+                axes[0].set_title('Center position (x)')
+                axes[0].plot(depths, roi_coord['stitch_xs'])
+                axes[1].set_title('Center position (y)')
+                axes[1].plot(depths, roi_coord['stitch_ys'])
+                axes[0].set_ylabel('Pixels')
+                axes[0].set_xlabel('Depths')
+                fig.tight_layout()
+                img_filename = '/tmp/' + hash_key_values(key) + '.png'
+                fig.savefig(img_filename, bbox_inches='tight')
+                plt.close(fig)
+
+                msg = ('stitch traces for {animal_id}-{session}-{stack_idx} volume '
+                       '{volume_id} roi {roi_id}').format(**roi_coord)
+                slack_user.notify(file=img_filename, file_title=msg)
+
+
+@schema
 class SummaryImages(dj.Computed):
     definition = """ # summary images for each field and channel after corrections
 
@@ -912,7 +1151,7 @@ class Segmentation(dj.Computed):
                     kwargs['soma_diameter'] = tuple(8 / (ScanInfo.Field() & key).microns_per_pixel)
 
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
-            kwargs['num_processes'] = 8  # Set to None for all cores available
+            kwargs['num_processes'] = 1#8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
 
             # Extract traces
