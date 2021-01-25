@@ -321,7 +321,8 @@ class OdorAnalysis(dj.Computed):
         """
 
     def make(self, key):
-        dm = DataMan(paths_init=os.environ['PATHS_FILE'], expt_id=(key['experiment_id']-1))
+        paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'paths.init')
+        dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
 
         entry_combinedtrial = []
         for index, row in dm.pd_odor.iterrows():
