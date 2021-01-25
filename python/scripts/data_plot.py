@@ -1,8 +1,8 @@
+import os
+from matplotlib import pyplot
 from pipeline import odor, experiment
 from DataMan import helpers
 from plot_dm import plot_dm
-from matplotlib import pyplot
-import os
 
 # Default values of args located in uinit.init
 def data_plot(key,
@@ -28,12 +28,13 @@ def data_plot(key,
               time_unit='sec'):
 
      data_plotintegral = (odor.OdorAnalysis.PlotIntegral & key).fetch1()
+     paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'),'paths.init')
 
      # Reconstruct DataMan object
      dm                                                     = type('', (), {})()
      dm.what_am_i                                           = "DataMan"
      dm.expt_id                                             = key['experiment_id'] - 1
-     dm.my_paths                                            = helpers.My_paths(paths_init=os.environ['PATHS_FILE'])
+     dm.my_paths                                            = helpers.My_paths(paths_init=paths_init)
      dm.n_unique_odor_combos                                = data_plotintegral['n_unique_odor_combos']
      dm.autoscale_integrals                                 = data_plotintegral['autoscale_integrals']
      dm.odor_labels                                         = data_plotintegral['odor_labels']
@@ -67,7 +68,11 @@ def data_plot(key,
 
      op = plot_dm(dm)
      op.plot_integrals()
-     pyplot.savefig('/data/DataPlot/fig1.png')
+     figure = pyplot.gcf()
+     figure.set_size_inches(14, 10)
+
+     figure_filename = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'figure1_odor_meso.png')
+     pyplot.savefig(figure_filename, dpi=500)
 
 data_plot({'experiment_id':1})
  
