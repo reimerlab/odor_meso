@@ -100,7 +100,7 @@ class OdorTrials(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = '/external/ingestion_storage/' #lab.Paths().get_local_path(olfactory_path)
+        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         digital_filename = os.path.join(local_path, filename_base + '_D_%d.h5')
 
@@ -157,7 +157,7 @@ class OdorSync(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = '/external/ingestion_storage/' #lab.Paths().get_local_path(olfactory_path)
+        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -221,7 +221,7 @@ class Respiration(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = '/external/ingestion_storage/' #lab.Paths().get_local_path(olfactory_path)
+        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -314,7 +314,7 @@ class OdorAnalysis(dj.Computed):
         n_unique_odor_combos    : int
         autoscale_integrals     : tinyblob
         odor_labels             : blob
-        glomeruli               : tinyblob
+        glomeruli               : blob
         response_integral       : blob
         pos_criterion           : float
         neg_criterion           : float
@@ -323,11 +323,10 @@ class OdorAnalysis(dj.Computed):
     def make(self, key):
         dm = DataMan(paths_init=os.environ['PATHS_FILE'], expt_id=(key['experiment_id']-1))
 
-        entry_combinedtrial = {}
-        i = 0
+        entry_combinedtrial = []
         for index, row in dm.pd_odor.iterrows():
-            entry_combinedtrial[i] = dict(
-                experiment_id           = key['experiment_id'],
+            entry_combinedtrial.append(dict(
+                **key,
                 trial_idx               = dm.pd_odor['trial_idx'][index],
                 trial_start_time        = dm.pd_odor['trial_start_time'][index],
                 trial_end_time          = dm.pd_odor['trial_end_time'][index],
@@ -344,11 +343,10 @@ class OdorAnalysis(dj.Computed):
                 odor                    = dm.pd_odor['odor'][index],
                 maxodor_post            = dm.pd_odor['maxodor_post'][index],
                 problems                = dm.pd_odor['problems'][index]
-            )
-            i+=1
+            ))
 
         entry_fluorescence = dict(
-            experiment_id           = key['experiment_id'],
+            **key,
             raw_fluorescence        = dm.raw_fluorescence,
             f0s                     = dm.f0s,
             f0_method               = dm.f0_method,
@@ -356,7 +354,7 @@ class OdorAnalysis(dj.Computed):
         )
 
         entry_plotintegral = dict(
-            experiment_id           = key['experiment_id'],
+            **key,
             n_unique_odor_combos    = dm.n_unique_odor_combos,
             autoscale_integrals     = dm.autoscale_integrals,
             odor_labels             = dm.odor_labels,
@@ -367,6 +365,6 @@ class OdorAnalysis(dj.Computed):
           )
 
         self.insert1(key)
-        self.CombinedTrial.insert(entry_combinedtrial.values())
+        self.CombinedTrial.insert(entry_combinedtrial)
         self.Fluorescence.insert1(entry_fluorescence)
         self.PlotIntegral.insert1(entry_plotintegral)
