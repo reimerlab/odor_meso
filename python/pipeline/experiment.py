@@ -1,6 +1,6 @@
 import datajoint as dj
 import pandas as pd
-from . import mouse, lab
+from . import mice, lab
 import numpy as np
 import os
 
@@ -338,7 +338,7 @@ class SurgeryOutcome(dj.Lookup):
 @schema
 class Surgery(dj.Manual):
     definition = """ # surgeries performed on mice
-    -> mouse.Mouse
+    -> mice.Mice
     surgery_id                   : smallint               # Unique number given to each surgery
     ---
     date                         : date                   # YYYY-MM-DD Format. Date surgery was performed
@@ -373,7 +373,7 @@ class SurgeryStatus(dj.Manual):
 class Session(dj.Manual):
     definition = """  # imaging session
 
-    -> mouse.Mouse
+    -> mice.Mice
     session                      : smallint            # session index for the mouse
     ---
     -> Rig
@@ -413,6 +413,13 @@ class Session(dj.Manual):
         -> PMTFilterSet
         """
 
+@schema
+class ExperimentalIdentifier(dj.Manual):
+    definition = """
+    experiment_id        : int auto_increment
+    ---
+    -> [unique] Session
+    """
 
 @schema
 class Aim(dj.Lookup):
@@ -646,4 +653,14 @@ class ProjectorSetup(dj.Lookup):
     target_distance     : float         # distance from mouse to the display in cm
     """
 
-
+@schema
+class TreadmillSpecs(dj.Lookup):
+    definition = """
+    # methods for extraction from raw data for either AOD or Galvo data
+    -> Rig
+    treadmill_start_date            : date              # first day in use on this rig
+    ---
+    diameter                        : float             # treadmill diameter where mouse sits in cm
+    counts_per_revolution = 8000    : int               # number of encoder counts per treadmill revolution
+    treadmill_notes                 : varchar(255)      # additional info about treadmill
+    """

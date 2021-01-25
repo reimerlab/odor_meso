@@ -1,5 +1,5 @@
 #!/usr/local/bin/python3
-from pipeline import experiment, reso, meso, fuse, stack, pupil, treadmill
+from . import experiment, reso, meso, fuse, stack, pupil, treadmill
 from stimulus import stimulus
 from stimline import tune
 

@@ -39,7 +39,7 @@ def segment(stack, method='ensemble', pad_mode='reflect', seg_threshold=0.8,
 
     # Declare models
     net = models.QCANet()
-    data_path = '/data/pipeline/python/pipeline/data/'
+    data_path = '/data/odor_meso/python/pipeline/data/'
     if method == 'single':
         model_names = ['bestndn_1-9-17026.pth']
     else:

@@ -117,7 +117,7 @@ class ScanInfo(dj.Imported):
         tuple_['usecs_per_line'] = scan.seconds_per_line * 1e6
         tuple_['fill_fraction'] = scan.temporal_fill_fraction
         tuple_['nrois'] = scan.num_rois
-        tuple_['valid_depth'] = True
+        # tuple_['valid_depth'] = True
 
         # Insert in ScanInfo
         self.insert1(tuple_)
@@ -579,6 +579,9 @@ class MotionCorrection(dj.Computed):
                                                  x_shifts[indices], y_shifts[indices])
 
 
+
+
+
 @schema
 class SummaryImages(dj.Computed):
     definition = """ # summary images for each field and channel after corrections
@@ -912,7 +915,7 @@ class Segmentation(dj.Computed):
                     kwargs['soma_diameter'] = tuple(8 / (ScanInfo.Field() & key).microns_per_pixel)
 
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
-            kwargs['num_processes'] = 8  # Set to None for all cores available
+            kwargs['num_processes'] = 1#8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
 
             # Extract traces
@@ -1183,7 +1186,7 @@ class Fluorescence(dj.Computed):
         field_id = key['field'] - 1
         channel = key['channel'] - 1
         scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-        scan = scanreader.read_scan(scan_filename)
+        scan = scanreader.read_scan('/data/odor_meso/' + scan_filename)
 
         # Map: Extract traces
         print('Creating fluorescence traces...')

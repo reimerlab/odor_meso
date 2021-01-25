@@ -1,5 +1,5 @@
 import datajoint as dj
-from . import mouse
+from . import mice
 
 schema = dj.schema('pipeline_map')
 
@@ -7,7 +7,7 @@ schema = dj.schema('pipeline_map')
 class RetMap (dj.Manual):
      definition = """
           # Retinotopy map
-          -> mouse.Mouse
+          -> mice.Mice
           ret_idx : smallint        # retinotopy map index for each animal
           ---
      """

@@ -18,7 +18,9 @@ class Area (dj.Lookup):
             ['RL'],
             ['AL'],
             ['LI'],
-            ['LM']
+            ['LM'],
+            ['OB'],
+            ['PC']
      ]
 
 @schema

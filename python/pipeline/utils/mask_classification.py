@@ -33,7 +33,7 @@ def classify_manual(masks, template):
             a.set_aspect(1)
             a.axis('off')
         fig.tight_layout()
-        fig.canvas.manager.window.wm_geometry("+250+250")
+        # fig.canvas.manager.window.wm_geometry("+250+250")
         fig.suptitle('S(o)ma, A(x)on, (D)endrite, (N)europil, (A)rtifact or (U)nknown?')
 
         def on_button(event):

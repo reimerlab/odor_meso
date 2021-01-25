@@ -1,5 +1,5 @@
 import datajoint as dj
-from pipeline import experiment
+from . import experiment
 from datajoint.hash import hash_key_values
 import os
 import numpy as np

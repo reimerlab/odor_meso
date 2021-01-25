@@ -3,8 +3,18 @@ LABEL maintainer="Edgar Y. Walker, Fabian Sinz, Erick Cobos, Donnie Kim"
 
 WORKDIR /data
 
-# Install pipeline
-COPY . /data/pipeline
-RUN pip3 install -e pipeline/python/
+# Upgrade datajoint
+RUN pip3 install --upgrade datajoint~=0.12.7
+
+# Upgrade pip
+RUN pip3 install --upgrade pip
+               
+# Install odor_meso
+COPY ./odor_meso /data/odor_meso
+RUN pip3 install -e /data/odor_meso/python/
+
+# Install DataPlot
+COPY ./DataPlot /data/DataPlot 
+RUN pip3 install -e /data/DataPlot
 
 ENTRYPOINT ["/bin/bash"]

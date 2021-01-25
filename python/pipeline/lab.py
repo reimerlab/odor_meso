@@ -60,4 +60,5 @@ class Paths(dj.Lookup):
         else:
             path = path.replace('\\', '/')
 
+        path = os.environ.get('INGESTION_STORAGE')
         return path
