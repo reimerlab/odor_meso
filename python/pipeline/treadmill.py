@@ -28,7 +28,7 @@ class Treadmill(dj.Computed):
     def _make_tuples(self, key):
         # Get behavior filename
         behavior_path = (experiment.Session() & key).fetch1('behavior_path')
-        local_path = lab.Paths().get_local_path(behavior_path)
+        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(behavior_path)
         filename = (experiment.Scan.BehaviorFile() & key).fetch1('filename')
         full_filename = os.path.join(local_path, filename)
 
