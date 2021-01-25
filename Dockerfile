@@ -14,7 +14,7 @@ COPY ./odor_meso /data/odor_meso
 RUN pip3 install -e /data/odor_meso/python/
 
 # Install DataPlot
-ADD ./DataPlot /data/DataPlot
+COPY ./DataPlot /data/DataPlot 
 RUN pip3 install -e /data/DataPlot
 
 ENTRYPOINT ["/bin/bash"]
