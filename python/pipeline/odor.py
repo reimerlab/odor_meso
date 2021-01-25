@@ -278,7 +278,7 @@ class OdorAnalysis(dj.Computed):
     class CombinedTrial(dj.Part):
         definition = """
         -> master
-        trial_idx               : smallint unsigned    # trial index for recording
+        (trial_idx) -> OdorTrials(trial_idx)
         ---
         trial_start_time        : float
         trial_end_time          : float
