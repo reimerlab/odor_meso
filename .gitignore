@@ -1,6 +1,7 @@
 .DS_Store
 external*/
 data*/
+paths.init
 
 # pipeline configuration
 .env*
