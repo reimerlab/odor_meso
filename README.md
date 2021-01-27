@@ -19,11 +19,17 @@
 
 ### Step 2 - Create `.env`
 
-+ At the root of the `odor_meso` repository folder, create a new file `.env` from the `env_template`
++ At the root of the `odor_meso` repository folder, create a new file `.env` from the `env_template`.
 
-+ Specify the database's `DJ_HOST`, `DJ_USER`, and `DJ_PASS`
++ Specify the database's `DJ_HOST`, `DJ_USER`, and `DJ_PASS`.
 
-### Step 3 - Build the Docker image
+### Step 3 - Create `paths.init`
+
++ This file is required for the `DataMan` and `plot_dm` functions.
+
++ At the root of the `odor_meso` repository folder, place a `paths.init` file.
+
+### Step 4 - Build the Docker image
 
 + Install [Docker Desktop](https://www.docker.com/products/docker-desktop)
 
@@ -64,11 +70,6 @@
 + Sample data must be ingested if you are using a local database
 
 + The database prefix is `pipeline`.  If you are running locally, ensure that you are not already using this database prefix.
-
-+ For the DataMan function, place a `paths.init` file  in the following directory
-     ```
-     ~/odor_meso/
-     ```
 
 + Place the fetched files in the following directory
      ```
