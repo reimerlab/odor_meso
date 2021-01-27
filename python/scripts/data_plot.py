@@ -28,7 +28,7 @@ def data_plot(key,
               time_unit='sec'):
 
      data_plotintegral = (odor.OdorAnalysis.PlotIntegral & key).fetch1()
-     paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'),'paths.init')
+     paths_init = os.path.join('/data/odor_meso/external/dataplot_storage','paths.init')#os.environ.get('DATAPLOT_STORAGE')
 
      # Reconstruct DataMan object
      dm                                                     = type('', (), {})()
@@ -71,8 +71,3 @@ def data_plot(key,
      figure = pyplot.gcf()
      figure.set_size_inches(14, 10)
 
-     figure_filename = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'figure1_odor_meso.png')
-     pyplot.savefig(figure_filename, dpi=500)
-
-data_plot({'experiment_id':1})
- 
