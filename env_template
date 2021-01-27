@@ -9,6 +9,7 @@ DJ_PASS=YOUR_DB_PASSWORD
 EXTERNAL_MOUNT=./odor_meso/external
 STACK_STORAGE=/external/stack_storage
 INGESTION_STORAGE=/external/ingestion_storage
+MESO_STORAGE=/data/odor_meso/external/meso_storage
 DATAPLOT_STORAGE=/data/odor_meso/external/dataplot_storage
 
 # PyQt5
