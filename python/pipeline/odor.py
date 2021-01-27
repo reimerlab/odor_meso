@@ -328,7 +328,7 @@ class OdorAnalysis(dj.Computed):
         """
 
     def make(self, key):
-        paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'paths.init')
+        paths_init = '/data/odor_meso/paths.init'
         dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
 
         # Load hdf5 file

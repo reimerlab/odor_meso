@@ -67,7 +67,7 @@
 
 + For the DataMan function, place a `paths.init` file  in the following directory
      ```
-     ~/odor_meso/external/dataplot_storage/
+     ~/odor_meso/
      ```
 
 + Place the fetched files in the following directory

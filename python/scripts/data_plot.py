@@ -28,13 +28,12 @@ def data_plot(key,
               time_unit='sec'):
 
      data_plotintegral = (odor.OdorAnalysis.PlotIntegral & key).fetch1()
-     paths_init = os.path.join('/data/odor_meso/external/dataplot_storage','paths.init')#os.environ.get('DATAPLOT_STORAGE')
 
      # Reconstruct DataMan object
      dm                                                     = type('', (), {})()
      dm.what_am_i                                           = "DataMan"
      dm.expt_id                                             = key['experiment_id'] - 1
-     dm.my_paths                                            = helpers.My_paths(paths_init=paths_init)
+     dm.my_paths                                            = helpers.My_paths(paths_init='/data/odor_meso/paths.init')
      dm.n_unique_odor_combos                                = data_plotintegral['n_unique_odor_combos']
      dm.autoscale_integrals                                 = data_plotintegral['autoscale_integrals']
      dm.odor_labels                                         = data_plotintegral['odor_labels']
