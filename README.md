@@ -12,8 +12,8 @@
 + Launch a new terminal and run the following
     ```
     cd ~/<Enter custom path>
-    git clone https://github.com/vathes/odor_meso
-    git clone https://github.com/vathes/DataPlot
+    git clone https://github.com/reimerlab/odor_meso
+    git clone https://github.com/ppfaff/DataPlot
     cd odor_meso
     ```
 
