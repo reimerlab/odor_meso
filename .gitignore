@@ -1,7 +1,10 @@
 .DS_Store
 external*/
 data*/
+
+# DataMan
 paths.init
+key.key
 
 # pipeline configuration
 .env*
