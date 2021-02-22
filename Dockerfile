@@ -8,7 +8,10 @@ RUN pip3 install --upgrade datajoint~=0.12.7
 
 # Upgrade pip
 RUN pip3 install --upgrade pip
-               
+
+# Install matplotlib-scalebar
+RUN pip3 install matplotlib-scalebar
+
 # Install odor_meso
 COPY ./odor_meso /data/odor_meso
 RUN pip3 install -e /data/odor_meso/python/
