@@ -418,7 +418,7 @@ class ExperimentalIdentifier(dj.Manual):
     definition = """
     experiment_id        : int auto_increment
     ---
-    -> [unique] Session
+    -> [unique] Scan
     """
 
 @schema
