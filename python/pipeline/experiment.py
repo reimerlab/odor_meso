@@ -413,13 +413,6 @@ class Session(dj.Manual):
         -> PMTFilterSet
         """
 
-@schema
-class ExperimentalIdentifier(dj.Manual):
-    definition = """
-    experiment_id        : int auto_increment
-    ---
-    -> [unique] Scan
-    """
 
 @schema
 class Aim(dj.Lookup):
@@ -488,6 +481,15 @@ class Scan(dj.Manual, HasFilename):
         power               : float                         # (mW) to brain
         gdd                 : float                         # gdd setting
         """
+
+
+@schema
+class ExperimentalIdentifier(dj.Manual):
+    definition = """
+    experiment_id        : int auto_increment
+    ---
+    -> [unique] Scan
+    """
 
 
 @schema
