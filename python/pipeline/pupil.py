@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import json
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 from datajoint.autopopulate import AutoPopulate
 
 from .utils.decorators import gitlog
@@ -152,7 +152,7 @@ class Eye(dj.Imported):
     def notify(self, key, frames):
         import imageio
 
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         frames = [imresize(img, 0.25) for img in frames.transpose([2, 0, 1])]
         imageio.mimsave(video_filename, frames, duration=0.5)
 

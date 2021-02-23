@@ -1,5 +1,5 @@
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 import numpy as np
 import os
 
@@ -88,7 +88,7 @@ class Treadmill(dj.Computed):
         plt.plot(time, velocity)
         plt.ylabel('Treadmill velocity (cm/sec)')
         plt.xlabel('Seconds')
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename)
         plt.close(fig)
 
