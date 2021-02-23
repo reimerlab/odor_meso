@@ -1,7 +1,7 @@
 import datajoint as dj
 from . import stack, anatomy, meso
 
-schema = dj.schema('pipeline_meso')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 
 @schema
 class StackCoordinates(dj.Computed):

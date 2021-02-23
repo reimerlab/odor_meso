@@ -9,7 +9,7 @@ from .utils import h5
 from .exceptions import PipelineException
 from DataMan import DataMan
 
-schema = dj.schema('pipeline_odor')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_odor')
 
 dj.config["enable_python_native_blobs"] = True
 

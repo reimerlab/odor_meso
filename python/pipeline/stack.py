@@ -26,7 +26,7 @@ dj.config['stores'] = {'stack_storage': {'protocol': 'file', 'location': os.envi
 dj.config['cache'] = '/tmp/dj-cache'
 
 
-schema = dj.schema('pipeline_stack')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_stack')
 
 
 @schema

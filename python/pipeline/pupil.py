@@ -48,7 +48,7 @@ import datetime
 
 __VERSION__ = "1.0.0"
 
-schema = dj.schema('pipeline_eye')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_eye')
 
 DEFAULT_PARAMETERS = {'relative_area_threshold': 0.002,
                       'ratio_threshold': 1.5,

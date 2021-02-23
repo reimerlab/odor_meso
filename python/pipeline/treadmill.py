@@ -7,7 +7,7 @@ from . import experiment, notify, lab
 from .utils import h5
 
 
-schema = dj.schema('pipeline_treadmill')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_treadmill')
 
 
 @schema

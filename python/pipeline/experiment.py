@@ -5,7 +5,7 @@ import numpy as np
 import os
 
 
-schema = dj.schema('pipeline_experiment')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_experiment')
 
 
 @schema

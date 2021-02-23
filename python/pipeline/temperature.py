@@ -9,7 +9,7 @@ from .exceptions import PipelineException
 from . import notify, lab
 
 
-schema = dj.schema('pipeline_temperature')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_temperature')
 
 
 @schema

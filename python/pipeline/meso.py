@@ -10,7 +10,7 @@ from .utils import galvo_corrections, signal, quality, mask_classification, perf
 from .exceptions import PipelineException
 
 
-schema = dj.schema('pipeline_meso')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
 
 

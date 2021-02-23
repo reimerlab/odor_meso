@@ -1,7 +1,7 @@
 import datajoint as dj
 from . import stack, reso
 
-schema = dj.schema('pipeline_reso')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_reso')
 
 @schema
 class StackCoordinates(dj.Computed):

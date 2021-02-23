@@ -4,7 +4,7 @@ DO NOT create new tables here.
 """
 
 import datajoint as dj
-schema = dj.schema('pipeline_mice')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_mice')
 
 @schema
 class Mice(dj.Manual):

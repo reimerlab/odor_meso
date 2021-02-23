@@ -1,7 +1,7 @@
 import datajoint as dj
 from . import experiment
 
-schema = dj.schema('pipeline_collection')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_collection')
 
 
 @schema
