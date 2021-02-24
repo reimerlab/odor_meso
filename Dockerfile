@@ -20,4 +20,7 @@ RUN pip3 install -e /data/odor_meso/python/
 COPY ./DataPlot /data/DataPlot 
 RUN pip3 install -e /data/DataPlot
 
+# Create directory for external mount
+RUN mkdir /data/external
+
 ENTRYPOINT ["/bin/bash"]

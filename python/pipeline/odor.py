@@ -100,7 +100,7 @@ class OdorTrials(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         digital_filename = os.path.join(local_path, filename_base + '_D_%d.h5')
 
@@ -157,7 +157,7 @@ class OdorSync(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -221,7 +221,7 @@ class Respiration(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -332,7 +332,7 @@ class OdorAnalysis(dj.Computed):
         dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
 
         # Load hdf5 file
-        stitched_filename = '/data/odor_meso/external/scans_stitched.h5'
+        stitched_filename = f'{os.environ.get("MESO_STORAGE")}/scans_stitched.h5'
         # save location in database and then fetch
         h5 = h5py.File(stitched_filename,'r')
 

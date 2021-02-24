@@ -4,6 +4,7 @@ from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
 import scanreader
+import os
 
 from . import experiment, injection, notify, shared
 from .utils import galvo_corrections, signal, quality, mask_classification, performance
@@ -12,6 +13,9 @@ from .exceptions import PipelineException
 
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
+
+dj.config['stores'] = {'meso_storage': {'protocol': 'file', 'location': os.environ.get('MESO_STORAGE','/data/external/meso_storage')}}
+dj.config["enable_python_native_blobs"] = True
 
 
 @schema
@@ -846,7 +850,7 @@ class Segmentation(dj.Computed):
             # Read scan
             print('Reading scan...')
             scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-            scan = scanreader.read_scan(scan_filename)
+            scan = scanreader.read_scan(f'{os.environ.get("MESO_STORAGE")}/{scan_filename}')
 
             # Create memory mapped file (as expected by CaImAn)
             print('Creating memory mapped file...')
@@ -1186,7 +1190,7 @@ class Fluorescence(dj.Computed):
         field_id = key['field'] - 1
         channel = key['channel'] - 1
         scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-        scan = scanreader.read_scan('/data/odor_meso/' + scan_filename)
+        scan = scanreader.read_scan(scan_filename)
 
         # Map: Extract traces
         print('Creating fluorescence traces...')
