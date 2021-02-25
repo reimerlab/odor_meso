@@ -211,7 +211,7 @@ class Compartment(dj.Lookup):
     compartment         : char(16)
     ---
     """
-    contents = [['axon'], ['soma'], ['bouton']]
+    contents = [['axon'], ['soma'], ['bouton'], ['unknown']]
 
 
 @schema
