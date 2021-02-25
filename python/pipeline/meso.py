@@ -754,6 +754,7 @@ class SegmentationTask(dj.Manual):
         else:
             PipelineException("Compartment type '{}' not recognized".format(compartment))
 
+        num_components = field_volume * 0.0001 # glomeruli estimate
         return int(round(num_components))
 
 
@@ -921,6 +922,10 @@ class Segmentation(dj.Computed):
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
             kwargs['num_processes'] = 1#8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
+            # Glomeruli estimate
+            kwargs['num_components_per_patch'] = 5
+            kwargs['soma_diameter'] = tuple([12,12])
+            print(kwargs)
 
             # Extract traces
             print('Extracting masks and traces (cnmf)...')
