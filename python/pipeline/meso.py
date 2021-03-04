@@ -310,6 +310,13 @@ class Quality(dj.Computed):
                'channel {channel}').format(**key)
         slack_user.notify(file=img_filename, file_title=msg)
 
+@schema
+class QualityManualCuration(dj.Manual):
+    definition = """ # manually specify quality of data
+    -> ScanInfo
+    ---
+    quality_flag    : bool
+    """
 
 @schema
 class CorrectionChannel(dj.Manual):
