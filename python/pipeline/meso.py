@@ -851,7 +851,7 @@ class Segmentation(dj.Computed):
             # Read scan
             print('Reading scan...')
             scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-            scan = scanreader.read_scan(f'{os.environ.get("MESO_STORAGE")}/{scan_filename}')
+            scan = scanreader.read_scan(scan_filename)
 
             # Create memory mapped file (as expected by CaImAn)
             print('Creating memory mapped file...')
