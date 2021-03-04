@@ -65,28 +65,16 @@
      docker-compose down
      ```
 ---
-## Ingest data
+## Process data
 
-+ Sample data must be ingested if you are using a local database
-
-+ The database prefix is `pipeline`.  If you are running locally, ensure that you are not already using this database prefix.
-
-+ Place the fetched files in the following directory
-     ```
-     ~/odor_meso/external/ingestion_storage/animal_id_<animal_id>
-     ```
-
-+ The ingestion routine can be found within the following jupyter notebook.  To run the notebook, navigate to `localhost:8888` in your web broswer.
++ The data ingestion and processing is usually handled with an automatic procedure, but the steps are described within the following Jupyter Notebook. To run the notebook, navigate to `localhost:8888` in your web broswer.
      ```
      ~/odor_meso/python/scripts/data_ingest.ipynb
      ```
-
-+ Rerun the jupyter notebook when ingesting new scans and/or subjects
-
 ---
 ## Explore data
 
-+ Detailed instructions can be found within the following jupyter notebook.  To run the notebook, navigate to `localhost:8888` in your web broswer.
++ Detailed instructions can be found within the following Jupyter Notebook.  To run the notebook, navigate to `localhost:8888` in your web broswer.
      ```
      ~/odor_meso/python/scripts/data_explore.ipynb
      ```
