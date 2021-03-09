@@ -13,13 +13,15 @@ from . import experiment, injection, notify, shared
 from .utils import galvo_corrections, signal, quality, mask_classification, performance
 from .exceptions import PipelineException
 
+os.environ['DJ_SUPPORT_FILEPATH_MANAGEMENT']='True'
+os.environ['FILEPATH_FEATURE_SWITCH']='True'
 
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
 
-dj.config['stores'] = {'meso_storage': {'protocol': 'file', 
-                                        'location': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
-                                        'stage': os.environ.get('MESO_STORAGE','/data/external/meso_storage')
+dj.config['stores'] = {'meso_storage': {'location': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
+                                        'stage': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
+                                        'protocol': 'file' 
                                        }
                       }
 dj.config["enable_python_native_blobs"] = True
@@ -610,7 +612,8 @@ class Stitch(dj.Computed):
     -> ScanInfo
     ---
     -> StitchMethod
-    stitched_image              : filepath@meso_storage
+    filename                : varchar(255)
+    # stitched_image              : filepath@meso_storage
     """
 
     def make(self, key):
@@ -677,7 +680,7 @@ class Stitch(dj.Computed):
 
         h5f.close()
         del scan
-        self.insert1({**key, 'method': 'GridInterpolation', 'stitched_image': stitched_filename})
+        self.insert1({**key, 'method': 'GridInterpolation', 'filename': stitched_filename})
 
 @schema
 class SummaryImages(dj.Computed):
