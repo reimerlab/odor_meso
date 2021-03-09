@@ -12,7 +12,7 @@ services:
       # - /home/pipeline_data/:/tmp/
       - .:/data/odor_meso/
       - ../DataPlot:/data/DataPlot/
-      - ${EXTERNAL_MOUNT:-./external}:/data/external
+      - ${EXTERNAL_MOUNT}:/data/external
     env_file: .env
     entrypoint:
       - jupyter 
