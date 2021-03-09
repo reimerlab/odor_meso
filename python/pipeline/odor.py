@@ -332,8 +332,7 @@ class OdorAnalysis(dj.Computed):
         dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
 
         # Load hdf5 file
-        stitched_filename = f'{os.environ.get("MESO_STORAGE")}/scans_stitched.h5'
-        # save location in database and then fetch
+        stitched_filename = (meso.Stitch & experiment.ExperimentalIdentifier & key).fetch1('filename')
         h5 = h5py.File(stitched_filename,'r')
 
         entry_combinedtrial = []
