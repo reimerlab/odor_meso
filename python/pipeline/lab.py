@@ -4,7 +4,7 @@ import numpy as np
 
 import datajoint as dj
 
-schema = dj.schema('pipeline_lab')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_lab')
 
 @schema
 class Paths(dj.Lookup):
@@ -60,5 +60,5 @@ class Paths(dj.Lookup):
         else:
             path = path.replace('\\', '/')
 
-        path = os.environ.get('INGESTION_STORAGE')
+        path = os.environ.get('MESO_STORAGE')
         return path

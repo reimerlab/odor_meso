@@ -1,17 +1,30 @@
 """ Schemas for mesoscope scans."""
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
 import scanreader
+from scipy.interpolate import griddata
+import os
+import h5py
+from tqdm import tqdm
 
 from . import experiment, injection, notify, shared
 from .utils import galvo_corrections, signal, quality, mask_classification, performance
 from .exceptions import PipelineException
 
+os.environ['DJ_SUPPORT_FILEPATH_MANAGEMENT']='True'
+os.environ['FILEPATH_FEATURE_SWITCH']='True'
 
-schema = dj.schema('pipeline_meso')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
+
+dj.config['stores'] = {'meso_storage': {'location': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
+                                        'stage': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
+                                        'protocol': 'file' 
+                                       }
+                      }
+dj.config["enable_python_native_blobs"] = True
 
 
 @schema
@@ -278,7 +291,7 @@ class Quality(dj.Computed):
     def notify(self, key, summary_frames, mean_intensities, contrasts):
         # Send summary frames
         import imageio
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         percentile_99th = np.percentile(summary_frames, 99.5)
         summary_frames = np.clip(summary_frames, None, percentile_99th)
         summary_frames = signal.float2uint8(summary_frames).transpose([2, 0, 1])
@@ -298,7 +311,7 @@ class Quality(dj.Computed):
         axes[1].plot(contrasts)
         axes[1].set_xlabel('Frames')
         axes[1].set_ylabel('Pixel intensities')
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -306,6 +319,13 @@ class Quality(dj.Computed):
                'channel {channel}').format(**key)
         slack_user.notify(file=img_filename, file_title=msg)
 
+@schema
+class QualityManualCuration(dj.Manual):
+    definition = """ # manually specify quality of data
+    -> ScanInfo
+    ---
+    quality_flag    : bool
+    """
 
 @schema
 class CorrectionChannel(dj.Manual):
@@ -499,7 +519,7 @@ class MotionCorrection(dj.Computed):
             axes[i].set_xlabel('Seconds')
             axes[i].legend()
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -579,8 +599,88 @@ class MotionCorrection(dj.Computed):
                                                  x_shifts[indices], y_shifts[indices])
 
 
+@schema
+class StitchMethod(dj.Lookup):
+    definition = """
+    method                     : varchar(32)
+    """
+    contents = [['GridInterpolation']]
 
+@schema
+class Stitch(dj.Computed):
+    definition = """ # stitch images by interpolating onto a uniform grid
+    -> ScanInfo
+    ---
+    -> StitchMethod
+    filename                : varchar(255)
+    # stitched_image              : filepath@meso_storage
+    """
 
+    def make(self, key):
+        scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
+        scan = scanreader.read_scan(f'{scan_filename}')
+        frame_stop = scan.num_frames
+        fps = (ScanInfo & key).fetch1('fps')
+
+        stitched_filename = f'{os.environ.get("MESO_STORAGE")}/scans_stitched_animalid_{key["animal_id"]}_session_{key["session"]}_scanidx_{key["scan_idx"]}.h5'
+
+        all_heights = ScanInfo.Field.fetch('px_height')
+        all_widths = ScanInfo.Field.fetch('px_width')
+        length_total = sum(np.multiply(all_heights, all_widths))
+
+        h5f = h5py.File(stitched_filename, 'w')
+
+        for frame in tqdm(range(frame_stop)):
+            counter = 0
+            all_coordinates = np.empty((length_total, 2))
+            all_values = np.empty((length_total))
+
+            for scan_field in (ScanInfo.Field & key).fetch(as_dict=True):
+
+                # Calculate grid coordinates
+                um_per_px_width = scan_field['um_width'] / scan_field['px_width']
+                um_per_px_height = scan_field['um_height'] / scan_field['px_height']
+
+                x = um_per_px_width*(np.array(range(scan_field['px_width'])) - scan_field['px_width']/2)
+                y = um_per_px_height*(np.array(range(scan_field['px_height'])) - scan_field['px_height']/2)
+
+                x += scan_field['x']
+                y += scan_field['y']
+
+                # Motion correct
+                y_shifts, x_shifts = (MotionCorrection() & key & {'field': scan_field['field']}).fetch1('y_shifts', 'x_shifts')
+
+                x_shifted = np.repeat(x[...,np.newaxis], frame+1-frame, axis=1) + x_shifts[frame:frame+1]
+                y_shifted = np.repeat(y[...,np.newaxis], frame+1-frame, axis=1) + y_shifts[frame:frame+1]
+
+                # Stitch coordinates - scan [field_id, y, x, channel, frames]
+                scan_subset = scan[scan_field['field']-1, :, :, 0, frame:frame+1]
+
+                for i in range(scan_field['px_width']):
+                    for j in range(scan_field['px_height']):
+                        all_coordinates[counter,0] = x_shifted[i,:]
+                        all_coordinates[counter,1] = y_shifted[j,:]
+                        all_values[counter] = scan_subset[j, i, :]
+                        counter+=1
+
+                del x, y, x_shifts, y_shifts, x_shifted, y_shifted, scan_subset
+
+            # Interpolate fields onto a uniform grid
+            grid_x, grid_y = np.mgrid[np.min(all_coordinates[:,1]):np.max(all_coordinates[:,1]):560j,
+                                    np.min(all_coordinates[:,0]):np.max(all_coordinates[:,0]):360j]
+
+            interpolation_method = 'nearest'
+            scans_stitched = griddata(all_coordinates, all_values, (grid_y, grid_x), method=interpolation_method)
+
+            # Save frame to disk
+            if interpolation_method == 'nearest':
+                h5f.create_dataset(f'frame{frame}', data=scans_stitched.astype(np.int16))
+            else:
+                h5f.create_dataset(f'frame{frame}', data=scans_stitched)
+
+        h5f.close()
+        del scan
+        self.insert1({**key, 'method': 'GridInterpolation', 'filename': stitched_filename})
 
 @schema
 class SummaryImages(dj.Computed):
@@ -694,7 +794,7 @@ class SummaryImages(dj.Computed):
             axes[channel, 1].imshow(corr)
 
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -750,6 +850,7 @@ class SegmentationTask(dj.Manual):
         else:
             PipelineException("Compartment type '{}' not recognized".format(compartment))
 
+        num_components = field_volume * 0.0001 # glomeruli estimate
         return int(round(num_components))
 
 
@@ -917,6 +1018,10 @@ class Segmentation(dj.Computed):
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
             kwargs['num_processes'] = 1#8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
+            # Glomeruli estimate
+            kwargs['num_components_per_patch'] = 5
+            kwargs['soma_diameter'] = tuple([12,12])
+            print(kwargs)
 
             # Extract traces
             print('Extracting masks and traces (cnmf)...')
@@ -1082,7 +1187,7 @@ class Segmentation(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key):
         fig = (Segmentation() & key).plot_masks()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1186,7 +1291,7 @@ class Fluorescence(dj.Computed):
         field_id = key['field'] - 1
         channel = key['channel'] - 1
         scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-        scan = scanreader.read_scan('/data/odor_meso/' + scan_filename)
+        scan = scanreader.read_scan(scan_filename)
 
         # Map: Extract traces
         print('Creating fluorescence traces...')
@@ -1215,7 +1320,7 @@ class Fluorescence(dj.Computed):
     def notify(self, key):
         fig = plt.figure(figsize=(15, 4))
         plt.plot((Fluorescence() & key).get_all_traces().T)
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1296,7 +1401,7 @@ class MaskClassification(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key, mask_types):
         fig = (MaskClassification() & key).plot_masks()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1582,7 +1687,7 @@ class Activity(dj.Computed):
     def notify(self, key):
         fig = plt.figure(figsize=(15, 4))
         plt.plot((Activity() & key).get_all_spikes().T)
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 

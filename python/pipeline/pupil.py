@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 import json
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 from datajoint.autopopulate import AutoPopulate
 
 from .utils.decorators import gitlog
@@ -48,7 +48,7 @@ import datetime
 
 __VERSION__ = "1.0.0"
 
-schema = dj.schema('pipeline_eye')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_eye')
 
 DEFAULT_PARAMETERS = {'relative_area_threshold': 0.002,
                       'ratio_threshold': 1.5,
@@ -85,7 +85,7 @@ class Eye(dj.Imported):
     def make(self, key):
         # Get behavior filename
         behavior_path = (experiment.Session() & key).fetch1('behavior_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(behavior_path)
+        local_path = lab.Paths().get_local_path(behavior_path)
         filename = (experiment.Scan.BehaviorFile() & key).fetch1('filename')
         full_filename = os.path.join(local_path, filename)
 
@@ -152,7 +152,7 @@ class Eye(dj.Imported):
     def notify(self, key, frames):
         import imageio
 
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         frames = [imresize(img, 0.25) for img in frames.transpose([2, 0, 1])]
         imageio.mimsave(video_filename, frames, duration=0.5)
 

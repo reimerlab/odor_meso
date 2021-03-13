@@ -6,10 +6,10 @@ DJ_HOST=host.docker.internal
 DJ_USER=YOUR_DB_USERNAME
 DJ_PASS=YOUR_DB_PASSWORD
 
-EXTERNAL_MOUNT=./odor_meso/external
-STACK_STORAGE=/external/stack_storage
-INGESTION_STORAGE=/external/ingestion_storage
-DATAPLOT_STORAGE=/data/odor_meso/external/dataplot_storage
+EXTERNAL_MOUNT=./external
+STACK_STORAGE=/data/external/stack_storage
+MESO_STORAGE=/data/external/meso_storage
+INGESTION_STORAGE=/data/external/ingestion_storage
 
 # PyQt5
 QT_QPA_PLATFORM=offscreen

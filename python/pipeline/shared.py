@@ -2,7 +2,7 @@
 
 import datajoint as dj
 
-schema = dj.schema('pipeline_shared')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_shared')
 
 @schema
 class Field(dj.Lookup):

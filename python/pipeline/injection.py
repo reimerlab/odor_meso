@@ -5,7 +5,7 @@ from . import mice
 from .exceptions import PipelineException
 
 
-schema = dj.schema('pipeline_injection')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_injection')
 CURRENT_VERSION = 1
 
 

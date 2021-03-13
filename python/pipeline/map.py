@@ -1,7 +1,7 @@
 import datajoint as dj
 from . import mice
 
-schema = dj.schema('pipeline_map')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_map')
 
 @schema
 class RetMap (dj.Manual):

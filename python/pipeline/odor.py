@@ -9,7 +9,7 @@ from .utils import h5
 from .exceptions import PipelineException
 from DataMan import DataMan
 
-schema = dj.schema('pipeline_odor')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_odor')
 
 dj.config["enable_python_native_blobs"] = True
 
@@ -100,7 +100,7 @@ class OdorTrials(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         digital_filename = os.path.join(local_path, filename_base + '_D_%d.h5')
 
@@ -157,7 +157,7 @@ class OdorSync(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -221,7 +221,7 @@ class Respiration(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -285,8 +285,8 @@ class OdorAnalysis(dj.Computed):
         odorant                 : varchar(64)
         nozzles                 : tinyblob
         duration                : int
-        start                   : float
-        stop                    : float
+        start                   : int
+        stop                    : int
         common                  : tinyblob
         pre_stim                : tinyblob
         odor_post               : tinyblob
@@ -295,6 +295,13 @@ class OdorAnalysis(dj.Computed):
         odor                    : tinyblob
         maxodor_post            : tinyblob
         problems                : varchar(16)
+        """
+
+    class SummaryImage(dj.Part):
+        definition = """
+        -> master.CombinedTrial
+        ---
+        average_image           : longblob
         """
 
     class Fluorescence(dj.Part):
@@ -321,21 +328,41 @@ class OdorAnalysis(dj.Computed):
         """
 
     def make(self, key):
-        paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'paths.init')
+        paths_init = '/data/odor_meso/paths.init'
         dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
 
+        # Load hdf5 file
+        stitched_filename = (meso.Stitch & experiment.ExperimentalIdentifier & key).fetch1('filename')
+        h5 = h5py.File(stitched_filename,'r')
+
         entry_combinedtrial = []
+        entry_summaryimage = []
+
         for index, row in dm.pd_odor.iterrows():
+            trial_idx     = dm.pd_odor['trial_idx'][index]
+            start         = dm.pd_odor['start'][index]
+            stop          = dm.pd_odor['stop'][index]
+
+            animal_id     = (experiment.ExperimentalIdentifier & key).fetch1('animal_id')
+            odor_session  = (OdorSession & f'animal_id={animal_id}').fetch1('odor_session')
+            recording_idx = (OdorRecording & f'animal_id={animal_id}' & f'odor_session={odor_session}').fetch1('recording_idx')
+            channel       = (OdorTrials & f'animal_id={animal_id}' & f'odor_session={odor_session}' & f'recording_idx={recording_idx}' & f'trial_idx={trial_idx}').fetch1('channel')
+            # make sure using all primary keys for all above fetchs
+
             entry_combinedtrial.append(dict(
                 **key,
-                trial_idx               = dm.pd_odor['trial_idx'][index],
+                animal_id               = animal_id,
+                odor_session            = odor_session,
+                recording_idx           = recording_idx,
+                channel                 = channel,
+                trial_idx               = trial_idx,
                 trial_start_time        = dm.pd_odor['trial_start_time'][index],
                 trial_end_time          = dm.pd_odor['trial_end_time'][index],
                 odorant                 = dm.pd_odor['odorant'][index],
                 nozzles                 = dm.pd_odor['nozzles'][index],
                 duration                = dm.pd_odor['duration'][index],
-                start                   = dm.pd_odor['start'][index],
-                stop                    = dm.pd_odor['stop'][index],
+                start                   = start,
+                stop                    = stop,
                 common                  = dm.pd_odor['common'][index],
                 pre_stim                = dm.pd_odor['pre_stim'][index],
                 odor_post               = dm.pd_odor['odor_post'][index],
@@ -345,6 +372,22 @@ class OdorAnalysis(dj.Computed):
                 maxodor_post            = dm.pd_odor['maxodor_post'][index],
                 problems                = dm.pd_odor['problems'][index]
             ))
+
+            stitched_image = np.empty((h5['frame0'].shape[0],h5['frame0'].shape[1],stop-start))
+            for frame in range(start, stop):
+                stitched_image[:,:,frame-start] = h5[f'frame{frame}']
+
+            entry_summaryimage.append(dict(
+                **key,
+                animal_id               = animal_id,
+                odor_session            = odor_session,
+                recording_idx           = recording_idx,
+                channel                 = channel,
+                trial_idx               = dm.pd_odor['trial_idx'][index],
+                average_image           = np.mean(stitched_image,axis=2)
+            ))
+
+        h5.close()
 
         entry_fluorescence = dict(
             **key,
@@ -367,5 +410,6 @@ class OdorAnalysis(dj.Computed):
 
         self.insert1(key)
         self.CombinedTrial.insert(entry_combinedtrial)
+        self.SummaryImage.insert(entry_summaryimage)
         self.Fluorescence.insert1(entry_fluorescence)
         self.PlotIntegral.insert1(entry_plotintegral)

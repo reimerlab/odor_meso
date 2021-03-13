@@ -5,7 +5,7 @@ import numpy as np
 import os
 
 
-schema = dj.schema('pipeline_experiment')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_experiment')
 
 
 @schema
@@ -211,7 +211,7 @@ class Compartment(dj.Lookup):
     compartment         : char(16)
     ---
     """
-    contents = [['axon'], ['soma'], ['bouton']]
+    contents = [['axon'], ['soma'], ['bouton'], ['unknown']]
 
 
 @schema
@@ -413,13 +413,6 @@ class Session(dj.Manual):
         -> PMTFilterSet
         """
 
-@schema
-class ExperimentalIdentifier(dj.Manual):
-    definition = """
-    experiment_id        : int auto_increment
-    ---
-    -> [unique] Session
-    """
 
 @schema
 class Aim(dj.Lookup):
@@ -488,6 +481,15 @@ class Scan(dj.Manual, HasFilename):
         power               : float                         # (mW) to brain
         gdd                 : float                         # gdd setting
         """
+
+
+@schema
+class ExperimentalIdentifier(dj.Manual):
+    definition = """
+    experiment_id        : int auto_increment
+    ---
+    -> [unique] Scan
+    """
 
 
 @schema

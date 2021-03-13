@@ -8,7 +8,19 @@ from plot_dm import plot_dm
 def data_plot(key,
               close_preexisting_figs=True,
               sig_prob=0.99, 
-              colors_id={ 0: "black", 1: "red" , 2: "orange", 3: "green", 4: "blue", 5: "purple", 6: "rosybrown", 7: "teal", 8: "saddlebrown", 9: "magenta", 10: "cornflowerblue", 11: "gold", 12: "lime"},
+              colors_id={0: "black", 
+                         1: "red" , 
+                         2: "orange", 
+                         3: "green", 
+                         4: "blue", 
+                         5: "purple", 
+                         6: "rosybrown", 
+                         7: "teal", 
+                         8: "saddlebrown", 
+                         9: "magenta", 
+                         10: "cornflowerblue", 
+                         11: "gold", 
+                         12: "lime"},
               default_color=0,
               title_size=24,
               y_range='common_autoscale',
@@ -28,13 +40,12 @@ def data_plot(key,
               time_unit='sec'):
 
      data_plotintegral = (odor.OdorAnalysis.PlotIntegral & key).fetch1()
-     paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'),'paths.init')
 
      # Reconstruct DataMan object
      dm                                                     = type('', (), {})()
      dm.what_am_i                                           = "DataMan"
      dm.expt_id                                             = key['experiment_id'] - 1
-     dm.my_paths                                            = helpers.My_paths(paths_init=paths_init)
+     dm.my_paths                                            = helpers.My_paths(paths_init='/data/odor_meso/paths.init')
      dm.n_unique_odor_combos                                = data_plotintegral['n_unique_odor_combos']
      dm.autoscale_integrals                                 = data_plotintegral['autoscale_integrals']
      dm.odor_labels                                         = data_plotintegral['odor_labels']
@@ -71,8 +82,3 @@ def data_plot(key,
      figure = pyplot.gcf()
      figure.set_size_inches(14, 10)
 
-     figure_filename = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'figure1_odor_meso.png')
-     pyplot.savefig(figure_filename, dpi=500)
-
-data_plot({'experiment_id':1})
- 

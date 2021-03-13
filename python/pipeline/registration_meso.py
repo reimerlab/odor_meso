@@ -1,7 +1,7 @@
 import datajoint as dj
 from . import stack, anatomy, meso
 
-schema = dj.schema('pipeline_meso')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 
 @schema
 class StackCoordinates(dj.Computed):
@@ -180,9 +180,9 @@ class Func2StructMatching(dj.Computed):
         iou_matrix = np.stack(ious)
 
         # Save all possible matches / iou_matrix > 0
-        self.insert1({**key, 'key_hash': hash_key_values(key)})
+        self.insert1({**key, 'key_hash': key_hash(key)})
         for mask_idx, func_idx in zip(*np.nonzero(iou_matrix)):
-            self.AllMatches.insert1({'key_hash': hash_key_values(key),
+            self.AllMatches.insert1({'key_hash': key_hash(key),
                                      'unit_id': scansetunit_keys[func_idx]['unit_id'],
                                      'sunit_id': sunit_ids[mask_idx],
                                      'iou': iou_matrix[mask_idx, func_idx]})

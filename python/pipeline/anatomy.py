@@ -1,7 +1,7 @@
 import datajoint as dj
 from . import map, experiment, shared
 
-schema = dj.schema('pipeline_anatomy')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_anatomy')
 
 @schema
 class Area (dj.Lookup):

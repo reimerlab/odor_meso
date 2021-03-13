@@ -1,5 +1,5 @@
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 import numpy as np
 import os
 
@@ -7,7 +7,7 @@ from . import experiment, notify, lab
 from .utils import h5
 
 
-schema = dj.schema('pipeline_treadmill')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_treadmill')
 
 
 @schema
@@ -28,7 +28,7 @@ class Treadmill(dj.Computed):
     def _make_tuples(self, key):
         # Get behavior filename
         behavior_path = (experiment.Session() & key).fetch1('behavior_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(behavior_path)
+        local_path = lab.Paths().get_local_path(behavior_path)
         filename = (experiment.Scan.BehaviorFile() & key).fetch1('filename')
         full_filename = os.path.join(local_path, filename)
 
@@ -88,7 +88,7 @@ class Treadmill(dj.Computed):
         plt.plot(time, velocity)
         plt.ylabel('Treadmill velocity (cm/sec)')
         plt.xlabel('Seconds')
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename)
         plt.close(fig)
 
