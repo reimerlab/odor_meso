@@ -64,14 +64,14 @@ class PipelineCopy:
         self.src_u, self.src_h, self.src_p = (
             args.get(v, None) for v in src_args)
 
-        dst_args = ('DST_USER', 'DST_HOST', 'DST_PASS')
+        dst_args = ('DST_USER', 'DST_HOST', 'DST_PASS', 'DST_PREFIX')
 
-        self.dst_u, self.dst_h, self.dst_p = (
+        self.dst_u, self.dst_h, self.dst_p, self.dst_x = (
             args.get(v, None) for v in dst_args)
 
         try:
             assert(all((self.src_u, self.src_h, self.src_p)))
-            assert(all((self.dst_u, self.dst_h, self.dst_p)))
+            assert(all((self.dst_u, self.dst_h, self.dst_p, self.dst_x)))
         except AssertionError:
             msg = 'configuration error: check {}'.format(
                 (*src_args, *dst_args))
@@ -90,13 +90,16 @@ class PipelineCopy:
         }
 
         dst_vmod_cfg = {
-            'mice': 'test_mice',
-            'shared': 'test_shared',
-            'experiment': 'test_experiment',
-            'odor': 'test_odor',
-            'meso': 'test_meso',
-            'eye': 'test_eye',
+            'mice': '{}_mice',
+            'shared': '{}_shared',
+            'experiment': '{}_experiment',
+            'odor': '{}_odor',
+            'meso': '{}_meso',
+            'eye': '{}_eye',
         }
+
+        dst_vmod_cfg = {k: v.format(self.dst_x)
+                        for k, v in dst_vmod_cfg.values()}
 
         def make_vmods(tag, cfg, connection):
             return {k: dj.create_virtual_module(
@@ -112,17 +115,19 @@ class PipelineCopy:
 
     def copy(self, restriction):
 
-        for mod in PipelineCopy.copy_map:
-            for spec in PipelineCopy.copy_map[mod]:
-                tab, dups, extras, directs = spec
+        with self.dst_c.transaction:
 
-                if any((dups is None, extras is None, directs is None)):
-                    print(f'skipping table {tab} - action unspecified')
-                    continue
+            for mod in PipelineCopy.copy_map:
+                for spec in PipelineCopy.copy_map[mod]:
+                    tab, dups, extras, directs = spec
 
-                self.copy1(mod, tab, {'skip_duplicates': dups,
-                                      'ignore_extra_fields': extras,
-                                      'allow_direct_insert': directs})
+                    if any((dups is None, extras is None, directs is None)):
+                        print(f'skipping table {tab} - action unspecified')
+                        continue
+
+                    self.copy1(mod, tab, {'skip_duplicates': dups,
+                                          'ignore_extra_fields': extras,
+                                          'allow_direct_insert': directs})
 
     def copy1(self, module_name, table_string, restriction, insert_args):
 
