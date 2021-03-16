@@ -71,7 +71,7 @@ class PipelineCopy:
 
         try:
             assert(all((self.src_u, self.src_h, self.src_p)))
-            assert(all((self.src_u, self.src_h, self.src_p)))
+            assert(all((self.dst_u, self.dst_h, self.dst_p)))
         except AssertionError:
             msg = 'configuration error: check {}'.format(
                 (*src_args, *dst_args))
@@ -83,7 +83,7 @@ class PipelineCopy:
         src_vmod_cfg = {
             'mice': 'common_mice',
             'shared': 'pipeline_shared',
-            'experiment': 'pipeilne_experiment',
+            'experiment': 'pipeline_experiment',
             'odor': 'pipeline_odor',
             'meso': 'pipeline_meso',
             'eye': 'pipeline_eye',
