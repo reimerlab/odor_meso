@@ -129,7 +129,8 @@ class Person(dj.Lookup):
         ['shuang', 'Shuang Li'],
         ['xiaolong', 'Xiaolong Jiang'],
         ['taliah', 'Taliah Muhammad'],
-        ['zhiwei',  'Zhiwei Ding']
+        ['zhiwei',  'Zhiwei Ding'],
+        ['liz', 'Liz Hanson']
     ]
 
 
