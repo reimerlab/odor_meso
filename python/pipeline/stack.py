@@ -1,4 +1,5 @@
 """ Schemas for structural stacks. """
+import os
 import datajoint as dj
 from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
@@ -27,6 +28,7 @@ dj.config['cache'] = '/tmp/dj-cache'
 dj.config["enable_python_native_blobs"] = True
 
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_stack')
 
 
@@ -144,7 +146,7 @@ class StackInfo(dj.Imported):
         for filename_key in filename_keys:
             stack_filename = (experiment.Stack.Filename() &
                               filename_key).local_filenames_as_wildcard
-            stacks.append(scanreader.read_scan(os.environ.get('MESO_STORAGE') + stack_filename))
+            stacks.append(scanreader.read_scan(stack_filename))
         num_rois_per_file = [(s.num_rois if s.is_multiROI else 1) for s in stacks]
 
         # Create Stack tuple
@@ -217,7 +219,7 @@ class Quality(dj.Computed):
             # Load ROI
             roi_filename = (experiment.Stack.Filename() &
                             roi_tuple).local_filenames_as_wildcard
-            roi = scanreader.read_scan(f'os.environ.get("MESO_STORAGE")/{roi_filename}')
+            roi = scanreader.read_scan(roi_filename)
 
             for channel in range((StackInfo() & key).fetch1('nchannels')):
                 # Map: Compute quality metrics in each field
@@ -320,7 +322,7 @@ class RasterCorrection(dj.Computed):
             # Read the ROI
             filename_rel = (experiment.Stack.Filename() & (StackInfo.ROI() & key))
             roi_filename = filename_rel.local_filenames_as_wildcard
-            roi = scanreader.read_scan(f'{os.environ.get("MESO_STORAGE")}/{roi_filename}')
+            roi = scanreader.read_scan(roi_filename)
 
             # Compute some parameters
             skip_fields = max(1, int(round(len(field_ids) * 0.10)))
@@ -399,7 +401,7 @@ class MotionCorrection(dj.Computed):
             # Read the ROI
             filename_rel = (experiment.Stack.Filename() & (StackInfo.ROI() & key))
             roi_filename = filename_rel.local_filenames_as_wildcard
-            roi = scanreader.read_scan(f'{os.environ.get("MESO_STORAGE")}/{roi_filename}')
+            roi = scanreader.read_scan(roi_filename)
 
             # Compute some params
             skip_rows = int(round(image_height * 0.10))
@@ -544,7 +546,7 @@ class Stitching(dj.Computed):
             # Load ROI
             roi_filename = (experiment.Stack.Filename() &
                             roi_tuple).local_filenames_as_wildcard
-            roi = scanreader.read_scan(f'{os.environ.get("MESO_STORAGE")}/{roi_filename}')
+            roi = scanreader.read_scan(roi_filename)
 
             # Map: Apply corrections to each field in parallel
             f = performance.parallel_correct_stack  # function to map
@@ -768,7 +770,7 @@ class CorrectedStack(dj.Computed):
                 # Load ROI
                 roi_filename = (experiment.Stack.Filename() &
                                 roi_tuple).local_filenames_as_wildcard
-                roi = scanreader.read_scan(f'{os.environ.get("MESO_STORAGE")}/{roi_filename}')
+                roi = scanreader.read_scan(roi_filename)
 
                 # Map: Apply corrections to each field in parallel
                 f = performance.parallel_correct_stack  # function to map
