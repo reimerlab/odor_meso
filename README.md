@@ -17,19 +17,33 @@
     cd odor_meso
     ```
 
-### Step 2 - Create `.env`
+### Step 2 - Change DataPlot repository branch
+
++ Launch a new terminal and run the following
+     ```
+     cd ~/DataPlot
+     git checkout release-1.0
+     ```
+
+### Step 3 - Create `.env`
 
 + At the root of the `odor_meso` repository folder, create a new file `.env` from the `env_template`.
 
 + Specify the database's `DJ_HOST`, `DJ_USER`, and `DJ_PASS`.
 
-### Step 3 - Create `paths.init`
+### Step 4 - Create `paths.init` and `uinit.init`
 
 + This file is required for the `DataMan` and `plot_dm` functions.
 
-+ At the root of the `odor_meso` repository folder, place a `paths.init` file.
++ At the root of the `odor_meso` repository folder, create a `paths.init` file and a `uinit.init` file.
 
-### Step 4 - Build the Docker image
+### Step 5 - Customize `docker-compose.yml`
+
++ Under `services`, add your username to `notebook_<username>`
+
++ Under `ports: HOST:CONTAINER`, you may need to change the `HOST` port if the Docker container throws an error
+
+### Step 6 - Build the Docker image
 
 + Install [Docker Desktop](https://www.docker.com/products/docker-desktop)
 
@@ -37,6 +51,9 @@
      ```
      docker-compose up -d --build notebook
      ```
+
+### Step 7 - (Optional) Install DataJoint LabBook
+
 
 ### Installation complete
 
