@@ -20,7 +20,7 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
     install_requires=['numpy', 'scipy', 'matplotlib', 'pandas', 'seaborn',
                       'imageio', 'imreg_dft', 'slacker', 'pyfftw', 'h5py',
-                      'scikit-image', 'scikit-learn'],
+                      'scikit-image', 'scikit-learn','jupytext'],
     classifiers=[
         'Development Status :: 1 - Beta',
         'Intended Audience :: Science/Research',
