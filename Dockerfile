@@ -29,4 +29,12 @@ RUN pip3 install -e /data/odor_meso/python/
 COPY ./DataPlot /data/DataPlot 
 RUN pip3 install -e /data/DataPlot
 
+# TODO remove these mkdirs?
+# Create directories for external mount
+# RUN mkdir /data/external_shared
+# RUN mkdir /data/external
+# RUN mkdir /data/external/stack_storage
+# RUN mkdir /data/external/meso_storage
+# RUN mkdir /data/external/ingestion_storage
+
 ENTRYPOINT ["/bin/bash"]
