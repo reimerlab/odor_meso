@@ -1,3 +1,4 @@
+import os
 import sys
 import datajoint as dj
 from distutils.version import StrictVersion
@@ -5,6 +6,7 @@ from . import experiment, reso, meso, shared
 from .exceptions import PipelineException
 
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_fuse')
 
 

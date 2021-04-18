@@ -1,7 +1,9 @@
 """ Lookup tables shared among multi-photon pipelines. """
 
+import os
 import datajoint as dj
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_shared')
 
 @schema

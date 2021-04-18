@@ -1,10 +1,10 @@
+import os
 import datajoint as dj
 import pandas as pd
 from . import mice, lab
 import numpy as np
-import os
 
-
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_experiment')
 
 
@@ -212,7 +212,7 @@ class Compartment(dj.Lookup):
     compartment         : char(16)
     ---
     """
-    contents = [['axon'], ['soma'], ['bouton'], ['unknown']]
+    contents = [['axon'], ['soma'], ['bouton'], ['unknown'], ['glomerulus']]
 
 
 @schema

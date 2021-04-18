@@ -1,6 +1,8 @@
+import os
 import datajoint as dj
 from . import map, experiment, shared
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_anatomy')
 
 @schema

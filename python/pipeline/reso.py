@@ -1,4 +1,5 @@
 """ Schemas for resonant scanners."""
+import os
 import datajoint as dj
 from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ from .utils import galvo_corrections, signal, quality, mask_classification, perf
 from .exceptions import PipelineException
 
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_reso')
 CURRENT_VERSION = 1
 

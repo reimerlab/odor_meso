@@ -1,7 +1,10 @@
+import os
 import datajoint as dj
 from datajoint.hash import key_hash
 
 from . import experiment
+
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_notification')
 
 # Decorator for notification functions. Ignores exceptions.

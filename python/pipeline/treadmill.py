@@ -1,12 +1,13 @@
+import os
 import datajoint as dj
 from datajoint.hash import key_hash
 import numpy as np
-import os
 
 from . import experiment, notify, lab
 from .utils import h5
 
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_treadmill')
 
 

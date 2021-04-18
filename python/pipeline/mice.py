@@ -2,8 +2,10 @@
 The `common_mice` schema is maintained by another package and is included here for ease of reference.
 DO NOT create new tables here.
 """
-
+import os
 import datajoint as dj
+
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_mice')
 
 @schema

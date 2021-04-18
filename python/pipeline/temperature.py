@@ -1,7 +1,7 @@
+import os
 import datajoint as dj
 from . import experiment
 from datajoint.hash import key_hash
-import os
 import numpy as np
 
 from .utils import h5, signal
@@ -9,6 +9,7 @@ from .exceptions import PipelineException
 from . import notify, lab
 
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_temperature')
 
 
