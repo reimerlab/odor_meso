@@ -1,11 +1,11 @@
 """ Schemas for mesoscope scans."""
+import os
 import datajoint as dj
 from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
 import scanreader
 from scipy.interpolate import griddata
-import os
 import h5py
 from tqdm import tqdm
 
@@ -16,6 +16,7 @@ from .exceptions import PipelineException
 os.environ['DJ_SUPPORT_FILEPATH_MANAGEMENT']='True'
 os.environ['FILEPATH_FEATURE_SWITCH']='True'
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
 
@@ -82,27 +83,6 @@ class ScanInfo(dj.Imported):
         valid_depth=0       : boolean       # whether depth has been manually check
         """
 
-        def make(self, key, scan, field_id):
-            # Create results tuple
-            tuple_ = key.copy()
-            tuple_['field'] = field_id + 1
-
-            # Get attributes
-            x_zero, y_zero, _ = scan.motor_position_at_zero  # motor x, y at ScanImage's 0
-            surf_z = (experiment.Scan() & key).fetch1('depth')  # surface depth in fastZ coordinates
-            tuple_['px_height'] = scan.field_heights[field_id]
-            tuple_['px_width'] = scan.field_widths[field_id]
-            tuple_['um_height'] = scan.field_heights_in_microns[field_id]
-            tuple_['um_width'] = scan.field_widths_in_microns[field_id]
-            tuple_['x'] = x_zero + scan._degrees_to_microns(scan.fields[field_id].x)
-            tuple_['y'] = y_zero + scan._degrees_to_microns(scan.fields[field_id].y)
-            tuple_['z'] = scan.field_depths[field_id] - surf_z # fastZ only
-            tuple_['delay_image'] = scan.field_offsets[field_id]
-            tuple_['roi'] = scan.field_rois[field_id][0]
-
-            # Insert
-            self.insert1(tuple_)
-
         @property
         def microns_per_pixel(self):
             """ Returns an array with microns per pixel in height and width. """
@@ -137,7 +117,25 @@ class ScanInfo(dj.Imported):
 
         # Insert field information
         for field_id in range(scan.num_fields):
-            ScanInfo.Field().make(key, scan, field_id)
+            # Create results tuple
+            tuple_field_ = key.copy()
+            tuple_field_['field'] = field_id + 1
+
+            # Get attributes
+            x_zero, y_zero, _ = scan.motor_position_at_zero  # motor x, y at ScanImage's 0
+            surf_z = (experiment.Scan() & key).fetch1('depth')  # surface depth in fastZ coordinates
+            tuple_field_['px_height'] = scan.field_heights[field_id]
+            tuple_field_['px_width'] = scan.field_widths[field_id]
+            tuple_field_['um_height'] = scan.field_heights_in_microns[field_id]
+            tuple_field_['um_width'] = scan.field_widths_in_microns[field_id]
+            tuple_field_['x'] = x_zero + scan._degrees_to_microns(scan.fields[field_id].x)
+            tuple_field_['y'] = y_zero + scan._degrees_to_microns(scan.fields[field_id].y)
+            tuple_field_['z'] = scan.field_depths[field_id] - surf_z # fastZ only
+            tuple_field_['delay_image'] = scan.field_offsets[field_id]
+            tuple_field_['roi'] = scan.field_rois[field_id][0]
+
+            # Insert in ScanInfo.Field
+            self.Field.insert1(tuple_field_)
 
         # Fill in CorrectionChannel if only one channel
         if scan.num_channels == 1:
@@ -615,68 +613,68 @@ class Stitch(dj.Computed):
     filename                : varchar(255)
     # stitched_image              : filepath@meso_storage
     """
-
+    # TODO WIP
     def make(self, key):
-        scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-        scan = scanreader.read_scan(f'{scan_filename}')
-        frame_stop = scan.num_frames
-        fps = (ScanInfo & key).fetch1('fps')
+        scan_filename = (experiment.Scan & key).local_filenames_as_wildcard
+        scan          = scanreader.read_scan(f'{scan_filename}')
+        frame_stop    = 100#scan.num_frames
+        fps           = (ScanInfo & key).fetch1('fps')
+        all_z         = (ScanInfo.Field & key).fetch('z')
 
         stitched_filename = f'{os.environ.get("MESO_STORAGE")}/scans_stitched_animalid_{key["animal_id"]}_session_{key["session"]}_scanidx_{key["scan_idx"]}.h5'
-
-        all_heights = ScanInfo.Field.fetch('px_height')
-        all_widths = ScanInfo.Field.fetch('px_width')
-        length_total = sum(np.multiply(all_heights, all_widths))
-
         h5f = h5py.File(stitched_filename, 'w')
 
         for frame in tqdm(range(frame_stop)):
-            counter = 0
-            all_coordinates = np.empty((length_total, 2))
-            all_values = np.empty((length_total))
+            for z in set(all_z):
+                all_heights, all_widths = (ScanInfo.Field & key & f'z={z}').fetch('px_height', 'px_width')
+                length_total = sum(np.multiply(all_heights, all_widths))
+                all_coordinates = np.empty((length_total, 2))
+                all_values = np.empty((length_total))
+                counter = 0
 
-            for scan_field in (ScanInfo.Field & key).fetch(as_dict=True):
+                for scan_field in (ScanInfo.Field & key & f'z={z}').fetch(as_dict=True):
+                    # Calculate grid coordinates
+                    um_per_px_width = scan_field['um_width'] / scan_field['px_width']
+                    um_per_px_height = scan_field['um_height'] / scan_field['px_height']
 
-                # Calculate grid coordinates
-                um_per_px_width = scan_field['um_width'] / scan_field['px_width']
-                um_per_px_height = scan_field['um_height'] / scan_field['px_height']
+                    x = um_per_px_width*(np.array(range(scan_field['px_width'])) - scan_field['px_width']/2)
+                    y = um_per_px_height*(np.array(range(scan_field['px_height'])) - scan_field['px_height']/2)
 
-                x = um_per_px_width*(np.array(range(scan_field['px_width'])) - scan_field['px_width']/2)
-                y = um_per_px_height*(np.array(range(scan_field['px_height'])) - scan_field['px_height']/2)
+                    x += scan_field['x']
+                    y += scan_field['y']
+                    # Coordinates of scans are described in meso.ScanInfo.Field - x, y, z are the center of the image
 
-                x += scan_field['x']
-                y += scan_field['y']
 
-                # Motion correct
-                y_shifts, x_shifts = (MotionCorrection() & key & {'field': scan_field['field']}).fetch1('y_shifts', 'x_shifts')
+                    # Motion correct
+                    y_shifts, x_shifts = (MotionCorrection() & key & {'field': scan_field['field']}).fetch1('y_shifts', 'x_shifts')
 
-                x_shifted = np.repeat(x[...,np.newaxis], frame+1-frame, axis=1) + x_shifts[frame:frame+1]
-                y_shifted = np.repeat(y[...,np.newaxis], frame+1-frame, axis=1) + y_shifts[frame:frame+1]
+                    x_shifted = np.repeat(x[...,np.newaxis], frame+1-frame, axis=1) + x_shifts[frame:frame+1]
+                    y_shifted = np.repeat(y[...,np.newaxis], frame+1-frame, axis=1) + y_shifts[frame:frame+1]
 
-                # Stitch coordinates - scan [field_id, y, x, channel, frames]
-                scan_subset = scan[scan_field['field']-1, :, :, 0, frame:frame+1]
+                    # Stitch coordinates - scan [field_id, y, x, channel, frames]
+                    scan_subset = scan[scan_field['field']-1, :, :, 0, frame:frame+1]
 
-                for i in range(scan_field['px_width']):
-                    for j in range(scan_field['px_height']):
-                        all_coordinates[counter,0] = x_shifted[i,:]
-                        all_coordinates[counter,1] = y_shifted[j,:]
-                        all_values[counter] = scan_subset[j, i, :]
-                        counter+=1
+                    for i in range(scan_field['px_width']):
+                        for j in range(scan_field['px_height']):
+                            all_coordinates[counter,0] = x_shifted[i,:]
+                            all_coordinates[counter,1] = y_shifted[j,:]
+                            all_values[counter] = scan_subset[j, i, :]
+                            counter+=1
 
-                del x, y, x_shifts, y_shifts, x_shifted, y_shifted, scan_subset
+                    del x, y, x_shifts, y_shifts, x_shifted, y_shifted, scan_subset
 
-            # Interpolate fields onto a uniform grid
-            grid_x, grid_y = np.mgrid[np.min(all_coordinates[:,1]):np.max(all_coordinates[:,1]):560j,
-                                    np.min(all_coordinates[:,0]):np.max(all_coordinates[:,0]):360j]
+                # Interpolate fields onto a uniform grid
+                grid_x, grid_y = np.mgrid[np.min(all_coordinates[:,1]):np.max(all_coordinates[:,1]):560j,
+                                          np.min(all_coordinates[:,0]):np.max(all_coordinates[:,0]):360j]
 
-            interpolation_method = 'nearest'
-            scans_stitched = griddata(all_coordinates, all_values, (grid_y, grid_x), method=interpolation_method)
+                interpolation_method = 'nearest'
+                scans_stitched = griddata(all_coordinates, all_values, (grid_y, grid_x), method=interpolation_method)
 
-            # Save frame to disk
-            if interpolation_method == 'nearest':
-                h5f.create_dataset(f'frame{frame}', data=scans_stitched.astype(np.int16))
-            else:
-                h5f.create_dataset(f'frame{frame}', data=scans_stitched)
+                # Save frame to disk
+                if interpolation_method == 'nearest':
+                    h5f.create_dataset(f'frame{frame}_z{z}', data=scans_stitched.astype(np.int16))
+                else:
+                    h5f.create_dataset(f'frame{frame}_z{z}', data=scans_stitched)
 
         h5f.close()
         del scan
@@ -991,6 +989,14 @@ class Segmentation(dj.Computed):
                     kwargs['num_components'] = (SegmentationTask() & key).estimate_num_components()
                     kwargs['init_method'] = 'greedy_roi'
                     kwargs['soma_diameter'] = tuple(2 / (ScanInfo.Field() & key).microns_per_pixel)
+                elif target == 'glomerulus':
+                    # TODO finalize parameters
+                    kwargs['init_on_patches'] = False
+                    # kwargs['proportion_patch_overlap'] = 0.2 # 20% overlap
+                    kwargs['num_components_per_patch'] = 5
+                    kwargs['init_method'] = 'greedy_roi'
+                    # kwargs['patch_size'] = tuple(50 / (ScanInfo.Field() & key).microns_per_pixel) # 50 x 50 microns
+                    kwargs['soma_diameter'] = tuple([12,12])
                 else: # soma
                     kwargs['init_on_patches'] = False
                     kwargs['num_components'] = (SegmentationTask() & key).estimate_num_components()
@@ -1009,6 +1015,8 @@ class Segmentation(dj.Computed):
                     kwargs['init_method'] = 'greedy_roi'
                     kwargs['patch_size'] = tuple(20 / (ScanInfo.Field() & key).microns_per_pixel) # 20 x 20 microns
                     kwargs['soma_diameter'] = tuple(2 / (ScanInfo.Field() & key).microns_per_pixel)
+                # elif target == 'glomerulus':
+                # TODO finalize parameters
                 else: # soma
                     kwargs['num_components_per_patch'] = 6
                     kwargs['init_method'] = 'greedy_roi'
@@ -1016,11 +1024,9 @@ class Segmentation(dj.Computed):
                     kwargs['soma_diameter'] = tuple(8 / (ScanInfo.Field() & key).microns_per_pixel)
 
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
-            kwargs['num_processes'] = 1#8  # Set to None for all cores available
+            kwargs['num_processes'] = 8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
-            # Glomeruli estimate
-            kwargs['num_components_per_patch'] = 5
-            kwargs['soma_diameter'] = tuple([12,12])
+
             print(kwargs)
 
             # Extract traces
@@ -1762,7 +1768,7 @@ class ScanDone(dj.Computed):
     class Partial(dj.Part):
         definition = """ # fields that have been processed in the current scan
 
-        -> ScanDone
+        -> master
         -> Activity
         """
 
