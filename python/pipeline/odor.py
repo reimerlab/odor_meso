@@ -4,11 +4,12 @@ import os
 import datajoint as dj
 import numpy as np
 
-from . import mice, meso, lab, experiment
+from . import mice, meso, lab, experiment, shared
 from .utils import h5
 from .exceptions import PipelineException
 from DataMan import DataMan
 
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
 schema = dj.schema(dj.config['database.prefix'] + 'pipeline_odor')
 
 dj.config["enable_python_native_blobs"] = True
@@ -261,6 +262,14 @@ class Respiration(dj.Imported):
 
 
 @schema
+class ScanTag(dj.Lookup):
+    definition = """
+    scan_tag:     varchar(24)
+    """
+    contents = zip(['habituation', 'multi-odor', 'single-odor'])
+
+
+@schema
 class MesoMatch(dj.Manual):
     definition = """ # Match between Odor Recording and Scan Session
     -> OdorRecording
@@ -268,11 +277,17 @@ class MesoMatch(dj.Manual):
     -> meso.ScanInfo
     """
 
+    class ScanTag(dj.Part):
+        definition = """
+        -> master
+        -> ScanTag
+        """
 
 @schema
 class OdorAnalysis(dj.Computed):
     definition = """
     -> experiment.ExperimentalIdentifier
+    -> shared.SegmentationMethod
     """
 
     class CombinedTrial(dj.Part):
@@ -328,8 +343,10 @@ class OdorAnalysis(dj.Computed):
         """
 
     def make(self, key):
-        paths_init = '/data/odor_meso/paths.init'
-        dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
+        segmentation_method = (meso.Segmentation & experiment.ExperimentalIdentifier & key).fetch1('segmentation_method')
+
+        paths_init = '/data/odor_meso/paths.init' #TODO: make environment variable?
+        dm = DataMan(paths_init=paths_init, expt_id=key['experiment_id'])
 
         # Load hdf5 file
         stitched_filename = (meso.Stitch & experiment.ExperimentalIdentifier & key).fetch1('filename')
@@ -408,7 +425,7 @@ class OdorAnalysis(dj.Computed):
             neg_criterion           = dm.exp_dict["response_cand"]["stats"]["neg_criterion"]
           )
 
-        self.insert1(key)
+        self.insert1({**key, 'segmentation_method': segmentation_method})
         self.CombinedTrial.insert(entry_combinedtrial)
         self.SummaryImage.insert(entry_summaryimage)
         self.Fluorescence.insert1(entry_fluorescence)
