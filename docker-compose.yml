@@ -6,18 +6,21 @@ services:
       context: ../
       dockerfile: ./odor_meso/Dockerfile
     ports:
-      - "8888:8888"
+      - "8080:8888"
     volumes:
       - .:/data/odor_meso/
       - ../DataPlot:/data/DataPlot/
-      - ${EXTERNAL_MOUNT}:/data/external
-      - ${EXTERNAL_MOUNT_SHARED}:/data/external_shared
+      # - ${EXTERNAL_MOUNT}:/data/external # TODO remove?
+      - ${EXTERNAL_MOUNT_SHARED}:${MESO_STORAGE}
+      - ${EXTERNAL_MOUNT_SCRATCH10}:/data/external_scratch10
+      - ${EXTERNAL_MOUNT_SCRATCH08}:/data/external_scratch08
       - /etc/localtime:/etc/localtime:ro
     env_file: .env
     entrypoint:
       - jupyter 
       - lab
       - --ip=0.0.0.0
+      - --port=8888
       - --allow-root
       - --NotebookApp.token=''
       - --no-browser
