@@ -4,7 +4,8 @@ import multiprocessing as mp
 from caiman import components_evaluation
 from caiman.utils import visualization
 from caiman.source_extraction.cnmf import map_reduce, initialization, pre_processing, \
-                                          merging, spatial, temporal, deconvolution
+                                          merging, spatial, temporal, deconvolution, \
+                                          utilities
 import glob, os, sys, time
 
 
@@ -102,6 +103,7 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
         # Create options dictionary (needed for run_CNMF_patches)
         options = {'patch_params': {'ssub': 'UNUSED.', 'tsub': 'UNUSED', 'nb': num_background_components,
                                     'only_init': True, 'skip_refinement': 'UNUSED.',
+                                    'rf': half_patch_size, 'stride': patch_overlap,
                                     'remove_very_bad_comps': False}, # remove_very_bads_comps unnecesary (same as default)
                    'preprocess_params': {'check_nan': False}, # check_nan is unnecessary (same as default value)
                    'spatial_params': {'nb': num_background_components}, # nb is unnecessary, it is pased to the function and in init_params
@@ -118,8 +120,7 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
 
         # Initialize per patch
         res = map_reduce.run_CNMF_patches(mmap_scan.filename, (image_height, image_width, num_frames),
-                                          options, rf=half_patch_size, stride=patch_overlap,
-                                          gnb=num_background_components, dview=pool)
+                                          options, gnb=num_background_components, dview=pool)
         initial_A, initial_C, YrA, initial_b, initial_f, pixels_noise, _ = res
 
         # Merge spatially overlapping components
@@ -170,7 +171,7 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
     log('Updating masks...')
     A, b, C, f = spatial.update_spatial_components(mmap_scan, initial_C, initial_f, initial_A, b_in=initial_b,
                                                    sn=pixels_noise, dims=(image_height, image_width),
-                                                   method='dilate', dview=pool,
+                                                   method_exp='dilate', dview=pool,
                                                    n_pixels_per_process=num_pixels_per_process,
                                                    nb=num_background_components)
 
@@ -185,16 +186,18 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
     log('Merging overlapping (and temporally correlated) masks...')
     merged_masks = ['dummy']
     while len(merged_masks) > 0:
-        res = merging.merge_components(mmap_scan, A, b, C, f, S, pixels_noise, {'p': 0, 'method': 'cvxpy'},
-                                       'UNUSED', dview=pool, thr=merge_threshold, bl=bl, c1=c1,
+        R = utilities.compute_residuals(mmap_scan, A, b, C, f)
+        res = merging.merge_components(mmap_scan, A, b, C, R, f, S, sn_pix=pixels_noise, 
+                                       temporal_params={'p': 0, 'method': 'cvxpy'},
+                                       spatial_params='UNUSED', dview=pool, thr=merge_threshold, bl=bl, c1=c1,
                                        sn=neurons_noise, g=g)
-        A, C, num_components, merged_masks, S, bl, c1, neurons_noise, g = res
+        A, C, num_components, merged_masks, S, bl, c1, neurons_noise, g, _, R = res
 
     # Refine masks
     log('Refining masks...')
     A, b, C, f = spatial.update_spatial_components(mmap_scan, C, f, A, b_in=b, sn=pixels_noise,
                                                    dims=(image_height, image_width),
-                                                   method='dilate', dview=pool,
+                                                   method_exp='dilate', dview=pool,
                                                    n_pixels_per_process=num_pixels_per_process,
                                                    nb=num_background_components)
 
