@@ -31,15 +31,21 @@ class PipelineCopy:
             ('Lens', True, False, False),
             ('Aim', True, False, False),
             ('Software', True, False, False),
-            ('Person', None, None, None),  # in data_ingest?
-            ('Anesthesia', None, None, None),  # in data_ingest?
-            ('BrainArea', None, None, None),  # in data_ingest?
+            ('Person', True, False, False),
+            ('BrainArea', True, False, False),
             ('Session', False, True, False),
             ('Scan', False, False, False),
             ('Scan.EyeVideo', False, False, False),
             ('Scan.BehaviorFile', False, False, False),
             ('Scan.Laser', False, False, False),
             ('TreadmillSpecs', False, False, False),),
+        'meso': (
+            ('Version', False, False, False),
+            ('CorrectionChannel', False, False, False),
+            ('SegmentationTask', False, False, False),
+            ('Segmentation', False, False, True),
+            ('Segmentation.Manual', False, False, True),
+            ('Segmentation.Mask', False, False, True),),
         'odor': (
             ('Odorant', False, False, False),
             ('OdorSolution', False, False, False),
@@ -47,14 +53,6 @@ class PipelineCopy:
             ('OdorConfig', False, False, False),
             ('OdorRecording', False, False, False),
             ('MesoMatch', False, False, False),),
-        'meso': (
-            ('Version', False, False, False),
-            ('ScanInfo', None, None, None),  # populate
-            ('CorrectionChannel', False, False, False),
-            ('SegmentationTask', False, False, False),
-            ('Segmentation', False, False, False),
-            ('Segmentation.Manual', False, False, True),
-            ('Segmentation.Mask', False, False, True),)
     }
 
     def __init__(self, **args):
@@ -78,28 +76,28 @@ class PipelineCopy:
             raise RuntimeError(msg) from None
 
         self.src_c = dj.Connection(self.src_h, self.src_u, self.src_p)
-        self.dst_c = dj.Connection(self.dst_h, self.dst_u, self.dst_p)
+        self.dst_c = dj.Connection(self.dst_h, self.dst_u, self.dst_p)  # TODO hostinput='' if upgrading to datajoint 0.13.0
 
         src_vmod_cfg = {
             'mice': 'common_mice',
-            'shared': 'pipeline_shared',
             'experiment': 'pipeline_experiment',
             'odor': 'pipeline_odor',
             'meso': 'pipeline_meso',
-            'eye': 'pipeline_eye',
+            'stack': 'pipeline_stack',
+            'treadmill': 'pipeline_treadmill',
         }
 
         dst_vmod_cfg = {
-            'mice': '{}_mice',
-            'shared': '{}_shared',
-            'experiment': '{}_experiment',
-            'odor': '{}_odor',
-            'meso': '{}_meso',
-            'eye': '{}_eye',
+            'mice': '{}mice',
+            'experiment': '{}experiment',
+            'odor': '{}odor',
+            'meso': '{}meso',
+            'stack': '{}stack',
+            'treadmill': '{}treadmill',
         }
 
         dst_vmod_cfg = {k: v.format(self.dst_x)
-                        for k, v in dst_vmod_cfg.values()}
+                        for k, v in dst_vmod_cfg.items()}
 
         def make_vmods(tag, cfg, connection):
             return {k: dj.create_virtual_module(
@@ -113,6 +111,7 @@ class PipelineCopy:
     def get(cls):
         return cls(**os.environ)
 
+    # TODO: simplify this script, since copy happens in data_transfer.py?
     def copy(self, restriction):
 
         with self.dst_c.transaction:
@@ -125,9 +124,9 @@ class PipelineCopy:
                         print(f'skipping table {tab} - action unspecified')
                         continue
 
-                    self.copy1(mod, tab, {'skip_duplicates': dups,
-                                          'ignore_extra_fields': extras,
-                                          'allow_direct_insert': directs})
+                    self.copy1(mod, tab, restriction, {'skip_duplicates': dups,
+                                                       'ignore_extra_fields': extras,
+                                                       'allow_direct_insert': directs})
 
     def copy1(self, module_name, table_string, restriction, insert_args):
 
