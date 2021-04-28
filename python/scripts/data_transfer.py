@@ -4,38 +4,34 @@ import odor_meso.python.scripts.data_copy as data_copy
 
 dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', 'user_kabilar_')
 
-# TODO pupil - version of deeplabcut doesn't work with upgraded version of scipy, 
-# which was upgraded for griddata interpolation of masks in stitched space
-
 # ------------------------------------------------------------------------------
 # Instantiate virtual module connections to source (at-database) and destination (jr-database) databases
 pc = data_copy.PipelineCopy.get()
 
 # Instantiate modules on jr-database for populating tables
-from pipeline import meso, odor, stack
+from pipeline import meso, odor, treadmill, stack
 
 # Verify connection to jr-database
 assert meso.schema.connection.conn_info['host'] == pc.dst_vmods['meso'].schema.connection.conn_info['host']
 
-# Create odor.OdorRecording restriction for database transfer
-query_odor = pc.src_vmods['odor'].OdorRecording().proj()
-query_animal = pc.src_vmods['mice'].Mice.proj() & query_odor
-query_meso = pc.src_vmods['odor'].MesoMatch() & query_odor
+# Create restriction for database transfer
+query_meso = pc.src_vmods['odor'].MesoMatch()
+query_experiment = pc.src_vmods['experiment'].AutoProcessing.proj()
 
 # Create stack restriction for database transfer
+# TODO check that stack is inserted
 query_animal = {'animal_id':124}
 # query_meso = {**query_animal, 'session':1, 'scan_idx':1}
 query_meso = (pc.src_vmods['experiment'].Scan & query_animal & 'aim="2pScan"').proj()
 query_stack = {**query_animal, 'session':9, 'scan_idx':3}
 # Manually removed 124/6/2 124/8/1 because of missing tif file
-populate_settings = {'display_progress': True, 'reserve_jobs': True}
+
+populate_settings = {'display_progress': True, 'reserve_jobs': True, 'suppress_errors': False}
 
 # ------------------------------------------------------------------------------
 print('Mice pipeline')
 
-mice_Mice = (pc.src_vmods['mice'].Mice & query_animal).fetch(as_dict=True)
-# Required because of the following error:
-# InternalError: (1292, "Incorrect date value: '0000-00-00' for column 'dob' at row 1")
+mice_Mice = (pc.src_vmods['mice'].Mice & query_meso).fetch(as_dict=True)
 for i in range(len(mice_Mice)): 
      if mice_Mice[i]['dob'] == '0000-00-00': mice_Mice[i]['dob'] = None
      if mice_Mice[i]['dow'] == '0000-00-00': mice_Mice[i]['dow'] = None
@@ -67,7 +63,6 @@ experiment_TreadmillSpecs = pc.src_vmods['experiment'].TreadmillSpecs.fetch(as_d
 pc.dst_vmods['experiment'].TreadmillSpecs.insert(experiment_TreadmillSpecs, skip_duplicates=False)
 
 # Manual tables
-#TODO remove sessions that are not in odor.odorrecording
 experiment_Session = (pc.src_vmods['experiment'].Session & query_meso).fetch(as_dict=True)
 pc.dst_vmods['experiment'].Session.insert(experiment_Session, skip_duplicates=True, ignore_extra_fields=True)
 
@@ -80,7 +75,6 @@ pc.dst_vmods['experiment'].Session.TargetStructure.insert(experiment_Session_Tar
 experiment_Session_PMTFilterSet = (pc.src_vmods['experiment'].Session.PMTFilterSet & query_meso).fetch(as_dict=True)
 pc.dst_vmods['experiment'].Session.PMTFilterSet.insert(experiment_Session_PMTFilterSet, skip_duplicates=True, ignore_extra_fields=True)
 
-#TODO remove scans that are not in odor.odorrecording
 experiment_Scan = (pc.src_vmods['experiment'].Scan & query_meso).fetch(as_dict=True)
 pc.dst_vmods['experiment'].Scan.insert(experiment_Scan, skip_duplicates=True)
 
@@ -96,46 +90,49 @@ pc.dst_vmods['experiment'].Scan.Laser.insert(experiment_Scan_Laser, skip_duplica
 experiment_Scan = (pc.src_vmods['experiment'].Scan & query_meso).fetch('KEY')
 pc.dst_vmods['experiment'].ExperimentalIdentifier.insert(experiment_Scan, skip_duplicates=True)
 
+experiment_AutoProcessing = (pc.src_vmods['experiment'].AutoProcessing & query_meso).fetch('KEY')
+pc.dst_vmods['experiment'].AutoProcessing.insert(experiment_AutoProcessing, skip_duplicates=True)
+
 # ------------------------------------------------------------------------------
 print('Meso pipeline')
+
+# TODO remove meso entries from jr-database that are not in experiment.AutoProcessing and odor.MesoMatch
 
 meso_Version = pc.src_vmods['meso'].Version.fetch(as_dict=True)
 pc.dst_vmods['meso'].Version.insert(meso_Version, skip_duplicates=True)
 
-meso.ScanInfo.populate(**populate_settings)
+meso.ScanInfo.populate((query_experiment & query_meso), **populate_settings)
 
-#TODO running
-meso.Quality.populate(**populate_settings)
+meso.Quality.populate((query_experiment & query_meso), **populate_settings)
 
-meso_CorrectionChannel = (pc.src_vmods['meso'].CorrectionChannel & query_meso).fetch(as_dict=True)
+meso_CorrectionChannel = (pc.src_vmods['meso'].CorrectionChannel & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].CorrectionChannel.insert(meso_CorrectionChannel, skip_duplicates=True)
 
-meso.RasterCorrection.populate(**populate_settings)
+meso.RasterCorrection.populate((query_experiment & query_meso), **populate_settings)
 
-#TODO running
-meso.MotionCorrection.populate(**populate_settings)
+meso.MotionCorrection.populate((query_experiment & query_meso), **populate_settings)
 
-meso.SummaryImages.populate(**populate_settings)
+meso.SummaryImages.populate((query_experiment & query_meso), **populate_settings)
 
-meso.Stitch.populate(**populate_settings)
+meso.Stitch.populate((query_experiment & query_meso), **populate_settings)
 
 # Glomeruli manual and CNMF segmentations from at-database
-meso_SegmentationTask = (pc.src_vmods['meso'].SegmentationTask & query_meso).fetch(as_dict=True)
+meso_SegmentationTask = (pc.src_vmods['meso'].SegmentationTask & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].SegmentationTask.insert(meso_SegmentationTask, skip_duplicates=True)
 
-meso_Segmentation = (pc.src_vmods['meso'].Segmentation & query_meso).fetch(as_dict=True)
+meso_Segmentation = (pc.src_vmods['meso'].Segmentation & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].Segmentation.insert(meso_Segmentation, skip_duplicates=True, allow_direct_insert=True)
 
-meso_Segmentation_Manual = (pc.src_vmods['meso'].Segmentation.Manual & query_meso).fetch(as_dict=True)
+meso_Segmentation_Manual = (pc.src_vmods['meso'].Segmentation.Manual & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].Segmentation.Manual.insert(meso_Segmentation_Manual, skip_duplicates=True, allow_direct_insert=True)
 
-meso_Segmentation_CNMF = (pc.src_vmods['meso'].Segmentation.CNMF & query_meso).fetch(as_dict=True)
+meso_Segmentation_CNMF = (pc.src_vmods['meso'].Segmentation.CNMF & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].Segmentation.CNMF.insert(meso_Segmentation_CNMF, skip_duplicates=True, allow_direct_insert=True)
 
-meso_Segmentation_CNMFBackground = (pc.src_vmods['meso'].Segmentation.CNMFBackground & query_meso).fetch(as_dict=True)
+meso_Segmentation_CNMFBackground = (pc.src_vmods['meso'].Segmentation.CNMFBackground & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].Segmentation.CNMFBackground.insert(meso_Segmentation_CNMFBackground, skip_duplicates=True, allow_direct_insert=True)
 
-meso_Segmentation_Mask = (pc.src_vmods['meso'].Segmentation.Mask & query_meso).fetch(as_dict=True)
+meso_Segmentation_Mask = (pc.src_vmods['meso'].Segmentation.Mask & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].Segmentation.Mask.insert(meso_Segmentation_Mask, skip_duplicates=True, allow_direct_insert=True)
 
 # # TODO remove segmentations that are trials
@@ -155,61 +152,65 @@ pc.dst_vmods['meso'].Segmentation.Mask.insert(meso_Segmentation_Mask, skip_dupli
 
 # pc.dst_vmods['meso'].Segmentation.populate(**populate_settings)
 
-# TODO error
-meso.Fluorescence.populate(**populate_settings)
+# TODO 
+meso.Fluorescence.populate((query_experiment & query_meso), **populate_settings)
 
-meso.MaskClassification.populate(**populate_settings)
+#TODO automatic classificiation only works with somatic scans
+meso.MaskClassification.populate((query_experiment & query_meso), **populate_settings)
 
-meso.ScanSet.populate(**populate_settings)
+# TODO 
+meso.ScanSet.populate((query_experiment & query_meso), **populate_settings)
 
-meso.Activity.populate(**populate_settings)
+#TODO 
+meso.Activity.populate((query_experiment & query_meso), **populate_settings)
 
-meso.ScanDone.populate(**populate_settings)
+meso.ScanDone.populate((query_experiment & query_meso), **populate_settings)
 
 # ------------------------------------------------------------------------------
 print('Odor pipeline')
 
-# TODO delete query animal
-# TODO rerun the following because odorrecording and mesomatch numnber of entries don't match
+# TODO remove from jr-database odor entries that are not in experiment.AutoProcessing and odor.MesoMatch
+
 odor_Odorant = pc.src_vmods['odor'].Odorant.fetch(as_dict=True)
-pc.dst_vmods['odor'].Odorant.insert(odor_Odorant, skip_duplicates=False)
+pc.dst_vmods['odor'].Odorant.insert(odor_Odorant, skip_duplicates=True)
 
 odor_OdorSolution = pc.src_vmods['odor'].OdorSolution.fetch(as_dict=True)
-pc.dst_vmods['odor'].OdorSolution.insert(odor_OdorSolution, skip_duplicates=False)
+pc.dst_vmods['odor'].OdorSolution.insert(odor_OdorSolution, skip_duplicates=True)
 
-odor_OdorSession = (pc.src_vmods['odor'].OdorSession & query_animal).fetch(as_dict=True)
-pc.dst_vmods['odor'].OdorSession.insert(odor_OdorSession, skip_duplicates=False)
+odor_OdorSession = (pc.src_vmods['odor'].OdorSession & (query_meso & query_experiment)).fetch(as_dict=True)
+pc.dst_vmods['odor'].OdorSession.insert(odor_OdorSession, skip_duplicates=True)
 
-odor_OdorConfig = (pc.src_vmods['odor'].OdorConfig & query_animal).fetch(as_dict=True)
-pc.dst_vmods['odor'].OdorConfig.insert(odor_OdorConfig, skip_duplicates=False)
+odor_OdorConfig = (pc.src_vmods['odor'].OdorConfig & (query_meso & query_experiment)).fetch(as_dict=True)
+pc.dst_vmods['odor'].OdorConfig.insert(odor_OdorConfig, skip_duplicates=True)
 
-odor_OdorRecording = (pc.src_vmods['odor'].OdorRecording & query_animal).fetch(as_dict=True)
-pc.dst_vmods['odor'].OdorRecording.insert(odor_OdorRecording, skip_duplicates=False)
+odor_OdorRecording = (pc.src_vmods['odor'].OdorRecording & (query_meso & query_experiment)).fetch(as_dict=True)
+pc.dst_vmods['odor'].OdorRecording.insert(odor_OdorRecording, skip_duplicates=True)
 
-odor_MesoMatch = (pc.src_vmods['odor'].MesoMatch & query_animal).fetch(as_dict=True)
-pc.dst_vmods['odor'].MesoMatch.insert(odor_MesoMatch, skip_duplicates=False)
+odor_MesoMatch = (pc.src_vmods['odor'].MesoMatch & (query_meso & query_experiment)).fetch(as_dict=True)
+pc.dst_vmods['odor'].MesoMatch.insert(odor_MesoMatch, skip_duplicates=True)
 
-#TODO: run the following
-odor.OdorTrials.populate(**populate_settings)
+odor.OdorTrials.populate(query_meso & query_experiment, **populate_settings)
 
-odor.OdorSync.populate(**populate_settings)
+odor.OdorSync.populate(query_meso & query_experiment, **populate_settings)
 
-odor.Respiration.populate(**populate_settings)
+odor.Respiration.populate(query_meso & query_experiment, **populate_settings)
 
-odor.OdorAnalysis.populate(**populate_settings)
+# TODO rewrite make, make sure dataman is set up for correct experimental id, and then run
+odor.OdorAnalysis.populate(, **populate_settings) # TODO add restriction
+
+# TODO run when meso.stitch is done, or run for all part tables except table that requires stitch
+odor.SummaryImageSet.populate(, **populate_settings) # TODO add restriction
 
 # ------------------------------------------------------------------------------
 print('Treadmill pipeline')
 
-# TODO error
-pc.dst_vmods['treadmill'].Treadmill.populate(**populate_settings)
+# TODO remove from jr-database treadmill entries that are not in experiment.AutoProcessing and odor.MesoMatch
 
-# ------------------------------------------------------------------------------
-# pc.copy(key)
+treadmill.Treadmill.populate((query_experiment & query_meso), **populate_settings)
 
 # ------------------------------------------------------------------------------
 print('Stack pipeline')
-
+# TODO WIP
 experiment_Scan = (pc.src_vmods['experiment'].Scan & query_stack).fetch1()
 experiment_Scan_Laser = (pc.src_vmods['experiment'].Scan.Laser & query_stack).fetch1()
 
