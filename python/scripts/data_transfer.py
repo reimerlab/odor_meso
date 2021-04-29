@@ -18,14 +18,6 @@ assert meso.schema.connection.conn_info['host'] == pc.dst_vmods['meso'].schema.c
 query_meso = pc.src_vmods['odor'].MesoMatch()
 query_experiment = pc.src_vmods['experiment'].AutoProcessing.proj()
 
-# Create stack restriction for database transfer
-# TODO check that stack is inserted
-query_animal = {'animal_id':124}
-# query_meso = {**query_animal, 'session':1, 'scan_idx':1}
-query_meso = (pc.src_vmods['experiment'].Scan & query_animal & 'aim="2pScan"').proj()
-query_stack = {**query_animal, 'session':9, 'scan_idx':3}
-# Manually removed 124/6/2 124/8/1 because of missing tif file
-
 populate_settings = {'display_progress': True, 'reserve_jobs': True, 'suppress_errors': False}
 
 # ------------------------------------------------------------------------------
@@ -87,7 +79,7 @@ pc.dst_vmods['experiment'].Scan.BehaviorFile.insert(experiment_Scan_BehaviorFile
 experiment_Scan_Laser = (pc.src_vmods['experiment'].Scan.Laser & query_meso).fetch(as_dict=True)
 pc.dst_vmods['experiment'].Scan.Laser.insert(experiment_Scan_Laser, skip_duplicates=True)
 
-experiment_Scan = (pc.src_vmods['experiment'].Scan & query_meso).fetch('KEY')
+experiment_Scan = (pc.src_vmods['experiment'].Scan & (query_experiment & query_meso)).fetch('KEY')
 pc.dst_vmods['experiment'].ExperimentalIdentifier.insert(experiment_Scan, skip_duplicates=True)
 
 experiment_AutoProcessing = (pc.src_vmods['experiment'].AutoProcessing & query_meso).fetch('KEY')
@@ -95,8 +87,6 @@ pc.dst_vmods['experiment'].AutoProcessing.insert(experiment_AutoProcessing, skip
 
 # ------------------------------------------------------------------------------
 print('Meso pipeline')
-
-# TODO remove meso entries from jr-database that are not in experiment.AutoProcessing and odor.MesoMatch
 
 meso_Version = pc.src_vmods['meso'].Version.fetch(as_dict=True)
 pc.dst_vmods['meso'].Version.insert(meso_Version, skip_duplicates=True)
@@ -152,24 +142,18 @@ pc.dst_vmods['meso'].Segmentation.Mask.insert(meso_Segmentation_Mask, skip_dupli
 
 # pc.dst_vmods['meso'].Segmentation.populate(**populate_settings)
 
-# TODO 
 meso.Fluorescence.populate((query_experiment & query_meso), **populate_settings)
 
-#TODO automatic classificiation only works with somatic scans
 meso.MaskClassification.populate((query_experiment & query_meso), **populate_settings)
 
-# TODO 
 meso.ScanSet.populate((query_experiment & query_meso), **populate_settings)
 
-#TODO 
 meso.Activity.populate((query_experiment & query_meso), **populate_settings)
 
 meso.ScanDone.populate((query_experiment & query_meso), **populate_settings)
 
 # ------------------------------------------------------------------------------
 print('Odor pipeline')
-
-# TODO remove from jr-database odor entries that are not in experiment.AutoProcessing and odor.MesoMatch
 
 odor_Odorant = pc.src_vmods['odor'].Odorant.fetch(as_dict=True)
 pc.dst_vmods['odor'].Odorant.insert(odor_Odorant, skip_duplicates=True)
@@ -195,22 +179,25 @@ odor.OdorSync.populate(query_meso & query_experiment, **populate_settings)
 
 odor.Respiration.populate(query_meso & query_experiment, **populate_settings)
 
-# TODO rewrite make, make sure dataman is set up for correct experimental id, and then run
-odor.OdorAnalysis.populate(, **populate_settings) # TODO add restriction
+# TODO fix keysource.  make sure dataman is set up for correct experimental id.
+odor.OdorAnalysis.populate(**populate_settings)
 
-# TODO run when meso.stitch is done, or run for all part tables except table that requires stitch
-odor.SummaryImageSet.populate(, **populate_settings) # TODO add restriction
+# TODO run when meso.stitch is complete
+odor.SummaryImageSet.populate(**populate_settings)
 
 # ------------------------------------------------------------------------------
 print('Treadmill pipeline')
-
-# TODO remove from jr-database treadmill entries that are not in experiment.AutoProcessing and odor.MesoMatch
 
 treadmill.Treadmill.populate((query_experiment & query_meso), **populate_settings)
 
 # ------------------------------------------------------------------------------
 print('Stack pipeline')
-# TODO WIP
+
+# Create stack restriction for scan-to-stack registration
+query_animal = {'animal_id':124}
+query_stack = {**query_animal, 'session':9, 'scan_idx':3}
+query_meso = (pc.dst_vmods['experiment'].Scan & query_animal & 'aim="2pScan"' & pc.dst_vmods['odor'].MesoMatch).proj()
+
 experiment_Scan = (pc.src_vmods['experiment'].Scan & query_stack).fetch1()
 experiment_Scan_Laser = (pc.src_vmods['experiment'].Scan.Laser & query_stack).fetch1()
 
@@ -243,10 +230,9 @@ pc.dst_vmods['experiment'].Stack.Laser.insert1({'animal_id': query_stack['animal
 
 stack.StackInfo.populate(**populate_settings)
 
-# TODO running
 stack.Quality.populate(**populate_settings)
 
-# TODO required if number of channels > 1
+# Required if number of channels > 1
 # pc.dst_vmods['stack'].CorrectionChannel.insert1()
 
 stack.RasterCorrection.populate(**populate_settings)
@@ -260,25 +246,29 @@ stack.CorrectedStack.populate(**populate_settings)
 stack.PreprocessedStack.populate(**populate_settings)
 
 # TODO error
-stack.Surface.populate(**populate_settings)
+# stack.Surface.populate(**populate_settings)
 
-stack_CorrectedStack = (pc.dst_vmods['stack'].CorrectedStack & query_stack).fetch('volume_id')
-meso_ScanInfo_Field = (pc.dst_vmods['meso'].ScanInfo.Field & query_meso).fetch('field')
+stack_CorrectedStack = (pc.dst_vmods['stack'].CorrectedStack & \
+                        {'animal_id': query_stack['animal_id'], \
+                        'session': query_stack['session'], \
+                        'stack_idx': query_stack['scan_idx']}).fetch()
 
-for volume_id in stack_CorrectedStack:
+meso_ScanInfo_Field = (pc.dst_vmods['meso'].ScanInfo.Field & query_meso).fetch()
+
+for corrected_stack in stack_CorrectedStack:
      for field in meso_ScanInfo_Field:
-          pc.dst_vmods['stack'].RegistrationTask.insert1({'animal_id': query_stack['animal_id'],
-                                                       'stack_session': query_stack['session'],
-                                                       'stack_idx': query_stack['scan_idx'],
-                                                       'volume_id': volume_id, 
-                                                       'stack_channel': 1,
-                                                       'scan_session': query_meso['session'],
-                                                       'scan_idx': query_meso['scan_idx'],
-                                                       'scan_channel': 1,
-                                                       'field': field,
-                                                       'registration_method': 5})# TODO Default is 5, clarify which method to use
+          pc.dst_vmods['stack'].RegistrationTask.insert1({'animal_id': corrected_stack['animal_id'],
+                                                          'stack_session': corrected_stack['session'],
+                                                          'stack_idx': corrected_stack['stack_idx'],
+                                                          'volume_id': corrected_stack['volume_id'], 
+                                                          'stack_channel': 1,
+                                                          'scan_session': field['session'],
+                                                          'scan_idx': field['scan_idx'],
+                                                          'scan_channel': 1,
+                                                          'field': field['field'],
+                                                          'registration_method': 5})# TODO Default is 5, clarify which method to use
 
-# TODO error
+# TODO running
 stack.Registration.populate(**populate_settings)
 
-# TODO add subsequent populate steps
+# TODO add subsequent populate steps?
