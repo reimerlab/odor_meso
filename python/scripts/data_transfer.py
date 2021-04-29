@@ -125,11 +125,9 @@ pc.dst_vmods['meso'].Segmentation.CNMFBackground.insert(meso_Segmentation_CNMFBa
 meso_Segmentation_Mask = (pc.src_vmods['meso'].Segmentation.Mask & (query_experiment & query_meso)).fetch(as_dict=True)
 pc.dst_vmods['meso'].Segmentation.Mask.insert(meso_Segmentation_Mask, skip_duplicates=True, allow_direct_insert=True)
 
-# # TODO remove segmentations that are trials
-# # Glomeruli CNMF segmentation
+# Glomeruli CNMF segmentation
 # for key in query_meso:
-# key = {'animal_id':1571, 'session':1, 'scan_idx':1}
-# key = {'animal_id':120, 'session':1, 'scan_idx':2}
+key = {'animal_id':125, 'session':1, 'scan_idx':1}
 # pc.dst_vmods['meso'].SegmentationTask.insert(
 #                               {'animal_id': key['animal_id'],
 #                               'session': key['session'],
@@ -194,16 +192,16 @@ treadmill.Treadmill.populate((query_experiment & query_meso), **populate_setting
 print('Stack pipeline')
 
 # Create stack restriction for scan-to-stack registration
-query_animal = {'animal_id':124}
-query_stack = {**query_animal, 'session':9, 'scan_idx':3}
-query_meso = (pc.dst_vmods['experiment'].Scan & query_animal & 'aim="2pScan"' & pc.dst_vmods['odor'].MesoMatch).proj()
+key_animal = {'animal_id':124}
+key_stack = {**key_animal, 'session':9, 'scan_idx':3}
+query_meso = (pc.dst_vmods['experiment'].Scan & key_animal & 'aim="2pScan"' & pc.dst_vmods['odor'].MesoMatch).proj()
 
-experiment_Scan = (pc.src_vmods['experiment'].Scan & query_stack).fetch1()
-experiment_Scan_Laser = (pc.src_vmods['experiment'].Scan.Laser & query_stack).fetch1()
+experiment_Scan = (pc.src_vmods['experiment'].Scan & key_stack).fetch1()
+experiment_Scan_Laser = (pc.src_vmods['experiment'].Scan.Laser & key_stack).fetch1()
 
-pc.dst_vmods['experiment'].Stack.insert1({'animal_id': query_stack['animal_id'], 
-                                          'session': query_stack['session'], 
-                                          'stack_idx': query_stack['scan_idx'],
+pc.dst_vmods['experiment'].Stack.insert1({'animal_id': key_stack['animal_id'], 
+                                          'session': key_stack['session'], 
+                                          'stack_idx': key_stack['scan_idx'],
                                           'lens': experiment_Scan['lens'],
                                           'brain_area': experiment_Scan['brain_area'],
                                           'aim': experiment_Scan['aim'],
@@ -215,15 +213,15 @@ pc.dst_vmods['experiment'].Stack.insert1({'animal_id': query_stack['animal_id'],
                                           'stack_notes': experiment_Scan['scan_notes'],
                                           'stack_ts': experiment_Scan['scan_ts']})
 
-pc.dst_vmods['experiment'].Stack.Filename.insert1({'animal_id': query_stack['animal_id'], 
-                                                   'session': query_stack['session'], 
-                                                   'stack_idx': query_stack['scan_idx'],
+pc.dst_vmods['experiment'].Stack.Filename.insert1({'animal_id': key_stack['animal_id'], 
+                                                   'session': key_stack['session'], 
+                                                   'stack_idx': key_stack['scan_idx'],
                                                    'filename_idx': 1,
                                                    'filename': experiment_Scan['filename']})
 
-pc.dst_vmods['experiment'].Stack.Laser.insert1({'animal_id': query_stack['animal_id'], 
-                                                'session': query_stack['session'], 
-                                                'stack_idx': query_stack['scan_idx'],
+pc.dst_vmods['experiment'].Stack.Laser.insert1({'animal_id': key_stack['animal_id'], 
+                                                'session': key_stack['session'], 
+                                                'stack_idx': key_stack['scan_idx'],
                                                 'wavelength': experiment_Scan_Laser['wavelength'],
                                                 'max_power': experiment_Scan_Laser['power'],
                                                 'gdd': experiment_Scan_Laser['gdd']})
@@ -249,9 +247,9 @@ stack.PreprocessedStack.populate(**populate_settings)
 # stack.Surface.populate(**populate_settings)
 
 stack_CorrectedStack = (pc.dst_vmods['stack'].CorrectedStack & \
-                        {'animal_id': query_stack['animal_id'], \
-                        'session': query_stack['session'], \
-                        'stack_idx': query_stack['scan_idx']}).fetch()
+                        {'animal_id': key_stack['animal_id'], \
+                        'session': key_stack['session'], \
+                        'stack_idx': key_stack['scan_idx']}).fetch()
 
 meso_ScanInfo_Field = (pc.dst_vmods['meso'].ScanInfo.Field & query_meso).fetch()
 
