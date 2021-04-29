@@ -14,83 +14,42 @@
 # ---
 
 # # Summary notebook
-# This notebook is used to determine if all data for a given session is acquired and processed.
+# This notebook is used to determine if all data is populated for the `at-database` to `jr-database` transfer.
 
 import os
 import datajoint as dj
 dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
-from pipeline import experiment, meso, odor, treadmill
+from pipeline import mice, experiment, meso, odor, treadmill
 
-# # Enter experimental identifier
+# ---
 
-experiment_id = 3
-
-# # Summary of all entries for experimental identifier
-
-experiment_id_query = experiment.ExperimentalIdentifier() & f'experiment_id={experiment_id}'
-experiment_id_query
-
-# +
-if len(experiment_id_query) == 1 and \
-   len(meso.QualityManualCuration & experiment_id_query) == 1 and \
-   len(meso.Segmentation & experiment_id_query) > 0  and \
-   len(meso.Fluorescence & experiment_id_query) > 0 and \
-   len(meso.Stitch & experiment_id_query) == 1 and \
-   len(odor.Respiration & experiment_id_query) == 1 and \
-   len(odor.OdorAnalysis & experiment_id_query) == 1 and \
-   len(treadmill.Treadmill & experiment_id_query) == 1:
-    print(f'All entries exist for experimental id: {experiment_id}')
-else:
-    print(f'All entries do NOT exist for experiment id: {experiment_id}.\
-          \nPlease investigate missing entries using tables below.')
-
-# TODO: add pupil diameter
-# -
-
-# # Entries for experimental identifier in individual tables
-
-meso.QualityManualCuration & experiment_id_query
-
-meso.Segmentation & experiment_id_query
-
-meso.Fluorescence & experiment_id_query
-
-meso.Stitch & experiment_id_query
-
-odor.Respiration & experiment_id_query
-
-odor.OdorAnalysis & experiment_id_query
-
-treadmill.Treadmill & experiment_id_query
-
-# +
-# TODO: add pupil diameter
-# -
-# # Summary of all entries
-# Make sure the entries are populated for all downstream tables.
+mice.Mice.proj()
 
 experiment.Session.proj()
 
+experiment.Session.proj() - odor.MesoMatch()
 
 experiment.Scan.proj()
 
-experiment.Session.proj() - experiment.Scan.proj() #TODO delete entries from Session
+experiment.Scan.proj() - odor.MesoMatch()
 
+experiment.AutoProcessing()
 
+experiment.AutoProcessing() - odor.MesoMatch()
 
+experiment.AutoProcessing.proj() - meso.ScanInfo.proj()
 
+experiment.AutoProcessing.proj() - meso.Quality()
 
-experiment.Scan.proj() - meso.ScanInfo.proj()
+meso.ScanInfo.Field.proj() - meso.CorrectionChannel.proj()
 
-experiment.Scan.proj() - meso.Quality()
+meso.ScanInfo.Field.proj() - meso.RasterCorrection.proj()
 
-meso.CorrectionChannel.proj() - meso.RasterCorrection.proj()
+meso.ScanInfo.Field.proj() - meso.MotionCorrection.proj()
 
-meso.CorrectionChannel.proj() - meso.MotionCorrection.proj()
+experiment.AutoProcessing.proj() - meso.Stitch.proj()
 
-experiment.Scan.proj() - meso.Stitch.proj()
-
-meso.SummaryImages()
+meso.CorrectionChannel() - meso.SummaryImages()
 
 meso.SegmentationTask.proj() - meso.Segmentation.proj()
 
@@ -104,12 +63,22 @@ meso.Activity()
 
 meso.ScanDone()
 
-odor.OdorRecording()
+experiment.AutoProcessing.proj() - treadmill.Treadmill.proj()
 
-odor.OdorSession()
+odor.OdorRecording.proj() - odor.MesoMatch()
 
-odor.MesoMatch()
+odor.MesoMatch.proj() - odor.OdorTrials()
 
+odor.MesoMatch.proj() - odor.OdorSync.proj()
 
+odor.MesoMatch.proj() - odor.Respiration.proj()
+
+experiment.ExperimentalIdentifier() - odor.OdorAnalysis()
+
+experiment.ExperimentalIdentifier() - odor.SummaryImageSet()
+
+# +
+# TODO: add stack pipeline
+# -
 
 
