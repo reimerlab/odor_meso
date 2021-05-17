@@ -1,15 +1,21 @@
-# make sure to have a copy of this with 
-# file named .env
+# Make sure to have a copy of this with file named `.env`
 
-# Tentative address to access host's DB from within a Docker container
-DJ_HOST=host.docker.internal
-DJ_USER=YOUR_DB_USERNAME
-DJ_PASS=YOUR_DB_PASSWORD
+# Credentials to access database from within Docker container
+DJ_HOST=<DB_HOST>
+DJ_USER=<DB_USERNAME>
+DJ_PASS=<DB_PASSWORD>
+DJ_PREFIX=<DB_PREFIX>
 
-EXTERNAL_MOUNT=./external
-STACK_STORAGE=/data/external/stack_storage
+# Within docker-compose.yml, EXTERNAL_MOUNT_<DIRECTORY_NAME> is mapped to <DIRECTORY_NAME>_STORAGE
+EXTERNAL_MOUNT_MESO=/mnt/scratch10/odor_meso_external/meso_storage
+EXTERNAL_MOUNT_STACK=/mnt/scratch10/odor_meso_external/stack_storage
+EXTERNAL_MOUNT_SCRATCH10=/mnt/scratch10
+EXTERNAL_MOUNT_SCRATCH08=/mnt/scratch08
+
 MESO_STORAGE=/data/external/meso_storage
-INGESTION_STORAGE=/data/external/ingestion_storage
+STACK_STORAGE=/data/external/stack_storage
+SCRATCH10_STORAGE=/data/external/scratch10
+SCRATCH08_STORAGE=/data/external/scratch08
 
 # PyQt5
 QT_QPA_PLATFORM=offscreen
