@@ -485,6 +485,30 @@ class Scan(dj.Manual, HasFilename):
 
 
 @schema
+class StimTypes(dj.Manual):
+    definition = """
+    # stim type, visual or auditory
+    stim_type_id            : tinyint               # 1=visual, 2=auditory
+    ---
+    stim_type               : varchar(32)           # name of the type
+    """
+
+
+@schema
+class ScanStimType(dj.Manual):
+    definition = """
+    # scan stim type, visual or auditory
+    -> Scan
+    -> StimTypes
+    ---
+    speaker_id                  : int
+    calib_trial                 : int
+    piezostimulator_id          : int
+    scan_ts=CURRENT_TIMESTAMP   : timestamp         # don't edit
+    """
+
+
+@schema
 class ExperimentalIdentifier(dj.Manual):
     definition = """
     experiment_id        : int auto_increment
