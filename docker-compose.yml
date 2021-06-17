@@ -10,10 +10,10 @@ services:
     volumes:
       - .:/data/odor_meso/
       - ../DataPlot:/data/DataPlot/
-      # - ${EXTERNAL_MOUNT}:/data/external # TODO remove?
-      - ${EXTERNAL_MOUNT_SHARED}:${MESO_STORAGE}
-      - ${EXTERNAL_MOUNT_SCRATCH10}:/data/external_scratch10
-      - ${EXTERNAL_MOUNT_SCRATCH08}:/data/external_scratch08
+      - ${EXTERNAL_MOUNT_MESO}:${MESO_STORAGE}
+      - ${EXTERNAL_MOUNT_STACK}:${STACK_STORAGE}
+      - ${EXTERNAL_MOUNT_SCRATCH10}:${SCRATCH10_STORAGE}
+      - ${EXTERNAL_MOUNT_SCRATCH08}:${SCRATCH08_STORAGE}
       - /etc/localtime:/etc/localtime:ro
     env_file: .env
     entrypoint:

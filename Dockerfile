@@ -19,6 +19,7 @@ RUN pip3 install git+https://github.com/flatironinstitute/CaImAn
 RUN pip3 install pynwb
 RUN pip3 install holoviews
 
+# Upgrade jupyterlab
 RUN pip3 install --upgrade jupyterlab
 
 # Install odor_meso
@@ -28,13 +29,5 @@ RUN pip3 install -e /data/odor_meso/python/
 # Install DataPlot
 COPY ./DataPlot /data/DataPlot 
 RUN pip3 install -e /data/DataPlot
-
-# TODO remove these mkdirs?
-# Create directories for external mount
-# RUN mkdir /data/external_shared
-# RUN mkdir /data/external
-# RUN mkdir /data/external/stack_storage
-# RUN mkdir /data/external/meso_storage
-# RUN mkdir /data/external/ingestion_storage
 
 ENTRYPOINT ["/bin/bash"]

@@ -4,6 +4,7 @@ import datajoint as dj
 from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 import scanreader
 from scipy.interpolate import griddata
 import h5py
@@ -961,8 +962,20 @@ class Segmentation(dj.Computed):
             y_shifts, x_shifts = (MotionCorrection() & key).fetch1('y_shifts', 'x_shifts')
             kwargs = {'raster_phase': raster_phase, 'fill_fraction': fill_fraction,
                       'y_shifts': y_shifts, 'x_shifts': x_shifts, 'mmap_scan': mmap_scan}
-            results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
-                                             kwargs=kwargs)
+            
+            if key['segmentation_method'] == 7: # For glomeruli segmentation, apply spatial and/or temporal median filter
+                px_height, px_width, um_height, um_width = (ScanInfo.Field() & key).fetch1('px_height', 'px_width', 'um_height', 'um_width')
+                
+                kernel_x = math.floor(15 / (um_width/px_width)) # [pixels] Estimated for a size of 15 um
+                kernel_y = math.floor(15 / (um_height/px_height)) # [pixels] Estimated for a size of 15 um
+                kernel_t = 1
+
+                results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
+                                                 kwargs=kwargs, 
+                                                 scan_filter=True, kernel_x=kernel_x, kernel_y=kernel_y, kernel_t=kernel_t)
+            else:
+                results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
+                                                 kwargs=kwargs)
 
             # Reduce: Use the minimum values to make memory mapped scan nonnegative
             mmap_scan -= np.min(results)  # bit inefficient but necessary
@@ -1002,6 +1015,19 @@ class Segmentation(dj.Computed):
                     kwargs['num_components'] = (SegmentationTask() & key).estimate_num_components()
                     kwargs['init_method'] = 'greedy_roi'
                     kwargs['soma_diameter'] = tuple(14 / (ScanInfo.Field() & key).microns_per_pixel)
+            elif key['segmentation_method'] == 7: # glomerulus
+                kwargs['init_on_patches'] = True
+                kwargs['p'] = 1
+                kwargs['num_background_components'] = 2     # gnb
+                kwargs['merge_threshold'] = 0.85            # merge_thr
+                kwargs['patch_size'] = (30, 30)             # rf 15
+                kwargs['proportion_patch_overlap'] = 0.2    # patch_overlap -> stride_cnmf 6
+                kwargs['num_components_per_patch'] = 4      # K
+                kwargs['soma_diameter'] = (8, 8)            # gSig [4,4]
+                kwargs['init_method'] = 'greedy_roi'        # method_init
+                kwargs['ssub'] = 2
+                kwargs['tsub'] = 2
+                kwargs['snmf_alpha'] = 100                  # Required because of error in source_extraction/cnmf/initialization.py if set to `None`
             else: #nmf-new
                 kwargs['init_on_patches'] = True
                 kwargs['proportion_patch_overlap'] = 0.2 # 20% overlap
@@ -1026,8 +1052,6 @@ class Segmentation(dj.Computed):
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
             kwargs['num_processes'] = 8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
-
-            print(kwargs)
 
             # Extract traces
             print('Extracting masks and traces (cnmf)...')
@@ -1180,7 +1204,7 @@ class Segmentation(dj.Computed):
         # Create masks
         if key['segmentation_method'] == 1:  # manual
             Segmentation.Manual().make(key)
-        elif key['segmentation_method'] in [2, 6]:  # nmf
+        elif key['segmentation_method'] in [2, 6, 7]:  # nmf
             self.insert1(key)
             Segmentation.CNMF().make(key)
         elif key['segmentation_method'] in [3, 4]: # nmf_patches, nmf-boutons
