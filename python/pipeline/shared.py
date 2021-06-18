@@ -88,7 +88,8 @@ class MaskType(dj.Lookup):
         ['dendrite'],
         ['neuropil'],
         ['artifact'],
-        ['unknown']
+        ['unknown'],
+        ['glomerulus']
     ]
 
 @schema
