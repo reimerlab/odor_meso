@@ -23,8 +23,7 @@ class Mice(dj.Manual):
           facility="unknown"  : enum('TMF','Taub','Other','unknown')           # animal's curent facility 
           room="unknown"      : enum('VH1','T027','VK3','VD4','T014','T057','T086D','Other','unknown') # animal's current room 
           rack=null           : tinyint                                        # animal's curent rack 
-          row=null              : tinyint#char,""                                           # animal's curent row
-
+          row=null            : tinyint                                        # animal's curent row
           mouse_notes=""      : varchar(4096)                                  # other comments and distinguishing features
           mouse_ts=CURRENT_TIMESTAMP : timestamp                               # automatic
     """
