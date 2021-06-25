@@ -970,7 +970,7 @@ class Segmentation(dj.Computed):
                 
                 kernel_x = math.floor(15 / (um_width/px_width)) # [pixels] Estimated for a size of 15 um
                 kernel_y = math.floor(15 / (um_height/px_height)) # [pixels] Estimated for a size of 15 um
-                kernel_t = 1
+                kernel_t = 1 # [frames]
 
                 results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
                                                  kwargs=kwargs, 
