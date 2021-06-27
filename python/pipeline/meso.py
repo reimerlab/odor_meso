@@ -1394,19 +1394,25 @@ class MaskClassification(dj.Computed):
         masks = Segmentation.reshape_masks(pixels, weights, image_height, image_width)
 
         # Classify masks
-        if key['classification_method'] == 1:  # manual
-            if not SummaryImages() & key:
-                msg = 'Need to populate SummaryImages before manual mask classification'
-                raise PipelineException(msg)
+        print('Currently only implemented for classification of manually segmented glomeruli masks.')
+        if key['segmentation_method'] == 1 and key['classification_method'] == 1:
+            mask_types = ['glomerulus' for mask_id in mask_ids.flat]
+        elif key['segmentation_method'] == 7:
+            raise NotImplementedError('Glomeruli classification is not currently implemented for CNMF segmentation.')
 
-            template = (SummaryImages.Correlation() & key).fetch1('correlation_image')
-            masks = masks.transpose([2, 0, 1])  # num_masks, image_height, image_width
-            mask_types = mask_classification.classify_manual(masks, template)
-        elif key['classification_method'] == 2:  # cnn-caiman
-            from .utils import caiman_interface as cmn
-            soma_diameter = tuple(14 / (ScanInfo.Field() & key).microns_per_pixel)
-            probs = cmn.classify_masks(masks, soma_diameter)
-            mask_types = ['soma' if prob > 0.75 else 'artifact' for prob in probs]
+        # if key['classification_method'] == 1:  # manual
+        #     if not SummaryImages() & key:
+        #         msg = 'Need to populate SummaryImages before manual mask classification'
+        #         raise PipelineException(msg)
+
+        #     template = (SummaryImages.Correlation() & key).fetch1('correlation_image')
+        #     masks = masks.transpose([2, 0, 1])  # num_masks, image_height, image_width
+        #     mask_types = mask_classification.classify_manual(masks, template)
+        # elif key['classification_method'] == 2:  # cnn-caiman
+        #     from .utils import caiman_interface as cmn
+        #     soma_diameter = tuple(14 / (ScanInfo.Field() & key).microns_per_pixel)
+        #     probs = cmn.classify_masks(masks, soma_diameter)
+        #     mask_types = ['soma' if prob > 0.75 else 'artifact' for prob in probs]
         else:
             msg = 'Unrecognized classification method {}'.format(key['classification_method'])
             raise PipelineException(msg)
