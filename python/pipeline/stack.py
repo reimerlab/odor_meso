@@ -2459,7 +2459,7 @@ class StackSet(dj.Computed):
     def key_source(self):
         return (CorrectedStack.proj(stack_session='session') *
                 shared.RegistrationMethod.proj() * shared.SegmentationMethod.proj() &
-                Registration & {'segmentation_method': 6})
+                Registration & {'segmentation_method': 1})
 
     class Unit(dj.Part):
         definition = """ # a unit in the stack
@@ -2534,9 +2534,9 @@ class StackSet(dj.Computed):
             # Create cell objects
             for channel_key in (pipe.ScanSet & field_key &
                                 {'segmentation_method': key['segmentation_method']}):  # *
-                somas = pipe.MaskClassification.Type & {'type': 'soma'}
-                field_somas = pipe.ScanSet.Unit & channel_key & somas
-                unit_keys, xs, ys = (pipe.ScanSet.UnitInfo & field_somas).fetch('KEY',
+                glomerulus = pipe.MaskClassification.Type & {'type': 'glomerulus'}
+                field_glomerulus = pipe.ScanSet.Unit & channel_key & glomerulus
+                unit_keys, xs, ys = (pipe.ScanSet.UnitInfo & field_glomerulus).fetch('KEY',
                         'px_x', 'px_y')
                 px_coords = np.stack([ys, xs])
                 xs, ys, zs = [ndimage.map_coordinates(grid[..., i], px_coords, order=1)
