@@ -102,23 +102,16 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
         patch_overlap = np.int32(np.round(patch_size * proportion_patch_overlap))
 
         # Create options dictionary (needed for run_CNMF_patches)
-        options = {'patch': {#'ssub': 'UNUSED.', 'tsub': 'UNUSED', #'gnb': num_background_components,
-                                    'only_init_patch': True, # 'skip_refinement': 'UNUSED.',
-                                    'rf': half_patch_size, 'stride': patch_overlap,
-                                    'remove_very_bad_comps': False}, # remove_very_bads_comps unnecesary (same as default)
-                   'preprocess': {'check_nan': False}, # check_nan is unnecessary (same as default value)
-                   # 'spatial': {'gnb': num_background_components}, # nb is unnecessary, it is pased to the function and in init_params
-                   'temporal': {'p': p}, # 'method': 'UNUSED.', 'block_size': 'UNUSED.'
+        options = {'patch': {'only_init_patch': True,
+                             'rf': half_patch_size, 'stride': patch_overlap,
+                             'remove_very_bad_comps': False},
+                   'preprocess': {'check_nan': False},
+                   'temporal': {'p': p},
                    'init': {'k': num_components_per_patch, 'gSig': np.array(soma_diameter)/2,
                                    'gSiz': None, 'method_init': init_method, 'alpha_snmf': snmf_alpha,
-                                   'gnb': num_background_components, 'ssub': ssub, 'tsub': tsub, #'ssub': 1, 'tsub': max(int(fps / 2), 1),
-                                   #'options_local_NMF': 'UNUSED.',
+                                   'gnb': num_background_components, 'ssub': ssub, 'tsub': tsub,
                                    'normalize_init': True,
-                                   'rolling_sum': True, 'rolling_length': 100}}# 'min_corr': 'UNUSED',
-                                   #'min_pnr': 'UNUSED', 'deconvolve_options_init': 'UNUSED',
-                                   #'ring_size_factor': 'UNUSED', 'center_psf': 'UNUSED'},
-                                   # gSiz, ssub, tsub, options_local_NMF, normalize_init, rolling_sum unnecessary (same as default values)
-                   #'merging' : {'thr': 'UNUSED.'}}
+                                   'rolling_sum': True, 'rolling_length': 100}}
         
         options_flat = {}
         for option_key in options:
