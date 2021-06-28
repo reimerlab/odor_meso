@@ -766,7 +766,6 @@ class SegmentationTask(dj.Manual):
         else:
             PipelineException("Compartment type '{}' not recognized".format(compartment))
 
-        num_components = field_volume * 0.0001 # glomeruli estimate
         return int(round(num_components))
 
 
@@ -919,14 +918,6 @@ class Segmentation(dj.Computed):
                     kwargs['num_components'] = (SegmentationTask() & key).estimate_num_components()
                     kwargs['init_method'] = 'greedy_roi'
                     kwargs['soma_diameter'] = tuple(2 / (ScanInfo.Field() & key).microns_per_pixel)
-                elif target == 'glomerulus':
-                    # TODO finalize parameters
-                    kwargs['init_on_patches'] = False
-                    # kwargs['proportion_patch_overlap'] = 0.2 # 20% overlap
-                    kwargs['num_components_per_patch'] = 5
-                    kwargs['init_method'] = 'greedy_roi'
-                    # kwargs['patch_size'] = tuple(50 / (ScanInfo.Field() & key).microns_per_pixel) # 50 x 50 microns
-                    kwargs['soma_diameter'] = tuple([12,12])
                 else: # soma
                     kwargs['init_on_patches'] = False
                     kwargs['num_components'] = (SegmentationTask() & key).estimate_num_components()
@@ -958,8 +949,6 @@ class Segmentation(dj.Computed):
                     kwargs['init_method'] = 'greedy_roi'
                     kwargs['patch_size'] = tuple(20 / (ScanInfo.Field() & key).microns_per_pixel) # 20 x 20 microns
                     kwargs['soma_diameter'] = tuple(2 / (ScanInfo.Field() & key).microns_per_pixel)
-                # elif target == 'glomerulus':
-                # TODO finalize parameters
                 else: # soma
                     kwargs['num_components_per_patch'] = 6
                     kwargs['init_method'] = 'greedy_roi'
