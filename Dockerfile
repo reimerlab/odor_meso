@@ -16,8 +16,7 @@ RUN pip3 install matplotlib-scalebar
 RUN pip3 install git+https://github.com/flatironinstitute/CaImAn
 
 # Install CaImAn dependencies
-RUN pip3 install pynwb
-RUN pip3 install holoviews
+RUN pip3 install pynwb holoviews
 
 # Upgrade jupyterlab
 RUN pip3 install --upgrade jupyterlab
