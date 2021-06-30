@@ -22,7 +22,6 @@ schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
 
 dj.config['stores'] = {'meso_storage': {'location': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
-                                        'stage': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
                                         'protocol': 'file' 
                                        }
                       }
