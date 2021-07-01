@@ -83,6 +83,27 @@ class ScanInfo(dj.Imported):
         valid_depth=0       : boolean       # whether depth has been manually check
         """
 
+        def make(self, key, scan, field_id):
+            # Create results tuple
+            tuple_ = key.copy()
+            tuple_['field'] = field_id + 1
+
+            # Get attributes
+            x_zero, y_zero, _ = scan.motor_position_at_zero  # motor x, y at ScanImage's 0
+            surf_z = (experiment.Scan() & key).fetch1('depth')  # surface depth in fastZ coordinates
+            tuple_['px_height'] = scan.field_heights[field_id]
+            tuple_['px_width'] = scan.field_widths[field_id]
+            tuple_['um_height'] = scan.field_heights_in_microns[field_id]
+            tuple_['um_width'] = scan.field_widths_in_microns[field_id]
+            tuple_['x'] = x_zero + scan._degrees_to_microns(scan.fields[field_id].x)
+            tuple_['y'] = y_zero + scan._degrees_to_microns(scan.fields[field_id].y)
+            tuple_['z'] = scan.field_depths[field_id] - surf_z # fastZ only
+            tuple_['delay_image'] = scan.field_offsets[field_id]
+            tuple_['roi'] = scan.field_rois[field_id][0]
+
+            # Insert
+            self.insert1(tuple_)
+
         @property
         def microns_per_pixel(self):
             """ Returns an array with microns per pixel in height and width. """
@@ -117,25 +138,7 @@ class ScanInfo(dj.Imported):
 
         # Insert field information
         for field_id in range(scan.num_fields):
-            # Create results tuple
-            tuple_field_ = key.copy()
-            tuple_field_['field'] = field_id + 1
-
-            # Get attributes
-            x_zero, y_zero, _ = scan.motor_position_at_zero  # motor x, y at ScanImage's 0
-            surf_z = (experiment.Scan() & key).fetch1('depth')  # surface depth in fastZ coordinates
-            tuple_field_['px_height'] = scan.field_heights[field_id]
-            tuple_field_['px_width'] = scan.field_widths[field_id]
-            tuple_field_['um_height'] = scan.field_heights_in_microns[field_id]
-            tuple_field_['um_width'] = scan.field_widths_in_microns[field_id]
-            tuple_field_['x'] = x_zero + scan._degrees_to_microns(scan.fields[field_id].x)
-            tuple_field_['y'] = y_zero + scan._degrees_to_microns(scan.fields[field_id].y)
-            tuple_field_['z'] = scan.field_depths[field_id] - surf_z # fastZ only
-            tuple_field_['delay_image'] = scan.field_offsets[field_id]
-            tuple_field_['roi'] = scan.field_rois[field_id][0]
-
-            # Insert in ScanInfo.Field
-            self.Field.insert1(tuple_field_)
+            ScanInfo.Field().make(key, scan, field_id)
 
         # Fill in CorrectionChannel if only one channel
         if scan.num_channels == 1:
