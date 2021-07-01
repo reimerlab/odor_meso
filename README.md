@@ -2,7 +2,7 @@
 
 + DataJoint pipeline to capture the data for the mice two-photon imaging experiments in the presence of olfactory stimulation.
 
-+ This is a cloned of the [cajal/pipeline](https://github.com/cajal/pipeline) with modifications. 
++ This is a clone of the [cajal/pipeline](https://github.com/cajal/pipeline) with modifications. 
 
 ---
 ## Install pipeline
@@ -33,7 +33,7 @@
 
 + Under `services`, add your username to `notebook_<username>`
 
-+ Under `ports: HOST:CONTAINER`, you may need to change the `HOST` port if the Docker container throws an error
++ Under `ports: HOST:CONTAINER`, if the `HOST` port is in use you will need to change this port.
 
 ### Step 5 - Build the Docker image
 
