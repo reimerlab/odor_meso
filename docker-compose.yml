@@ -1,12 +1,12 @@
 version: '2.0'
 
 services:
-  notebook_<username>:
+  notebook:
     build:
       context: ../
       dockerfile: ./odor_meso/Dockerfile
     ports:
-      - "8080:8888"
+      - "8888:8888"
     volumes:
       - .:/data/odor_meso/
       - ../DataPlot:/data/DataPlot/
