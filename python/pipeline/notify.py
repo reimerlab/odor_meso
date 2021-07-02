@@ -1,8 +1,11 @@
+import os
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 
 from . import experiment
-schema = dj.schema('pipeline_notification')
+
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_notification')
 
 # Decorator for notification functions. Ignores exceptions.
 def ignore_exceptions(f):
@@ -66,7 +69,7 @@ def temporary_image(array, key):
     with sns.axes_style('white'):
         plt.matshow(array, cmap='gray')
         plt.axis('off')
-    filename = '/tmp/' + hash_key_values(key) + '.png'
+    filename = '/tmp/' + key_hash(key) + '.png'
 
     plt.savefig(filename)
     sns.reset_orig()

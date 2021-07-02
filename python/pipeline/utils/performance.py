@@ -3,9 +3,11 @@ import multiprocessing as mp
 from . import galvo_corrections
 import time
 
+from scipy.ndimage import gaussian_filter, median_filter
 
 def map_frames(f, scan, field_id, channel, y=slice(None), x=slice(None), kwargs={},
-               chunk_size_in_GB=0.5, num_processes=10, queue_size=10):
+               chunk_size_in_GB=0.5, num_processes=10, queue_size=10,
+               scan_filter=False, kernel_x=1, kernel_y=1, kernel_t=1):
     """ Apply function f to chunks of the scan (divided in the temporal axis).
 
     :param function f: Function that receives two positional arguments:
@@ -56,7 +58,15 @@ def map_frames(f, scan, field_id, channel, y=slice(None), x=slice(None), kwargs=
     num_frames = scan.num_frames
     for i in range(0, num_frames, chunk_size):
         frames = slice(i, min(i + chunk_size, num_frames))
-        chunks.put((frames, scan[field_id, y, x, channel, frames])) # frames, chunk tuples
+        
+        if scan_filter:
+            scan_subset = median_filter(scan[field_id, y, x, channel, frames], size=(kernel_x, kernel_y, kernel_t))
+            # scan_subset = gaussian_filter(scan[field_id, y, x, channel, frames], sigma=[3,3,0])
+        else:
+            scan_subset = scan[field_id, y, x, channel, frames]
+
+        chunks.put((frames, scan_subset)) # frames, chunk tuples        
+        # chunks.put((frames, scan[field_id, y, x, channel, frames])) # frames, chunk tuples
         # chunks.put(((field_id, y, x, channel, frames), scan.filenames)) # scan_slices, filenames tuples
 
     # Queue STOP signal

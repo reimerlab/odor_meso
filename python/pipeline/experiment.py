@@ -1,11 +1,11 @@
+import os
 import datajoint as dj
 import pandas as pd
 from . import mice, lab
 import numpy as np
-import os
 
-
-schema = dj.schema('pipeline_experiment')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_experiment')
 
 
 @schema
@@ -129,7 +129,8 @@ class Person(dj.Lookup):
         ['shuang', 'Shuang Li'],
         ['xiaolong', 'Xiaolong Jiang'],
         ['taliah', 'Taliah Muhammad'],
-        ['zhiwei',  'Zhiwei Ding']
+        ['zhiwei',  'Zhiwei Ding'],
+        ['liz', 'Liz Hanson']
     ]
 
 
@@ -211,7 +212,7 @@ class Compartment(dj.Lookup):
     compartment         : char(16)
     ---
     """
-    contents = [['axon'], ['soma'], ['bouton']]
+    contents = [['axon'], ['soma'], ['bouton'], ['unknown'], ['glomerulus']]
 
 
 @schema
@@ -413,13 +414,6 @@ class Session(dj.Manual):
         -> PMTFilterSet
         """
 
-@schema
-class ExperimentalIdentifier(dj.Manual):
-    definition = """
-    experiment_id        : int auto_increment
-    ---
-    -> [unique] Session
-    """
 
 @schema
 class Aim(dj.Lookup):
@@ -488,6 +482,39 @@ class Scan(dj.Manual, HasFilename):
         power               : float                         # (mW) to brain
         gdd                 : float                         # gdd setting
         """
+
+
+@schema
+class StimTypes(dj.Manual):
+    definition = """
+    # stim type, visual or auditory
+    stim_type_id            : tinyint               # 1=visual, 2=auditory
+    ---
+    stim_type               : varchar(32)           # name of the type
+    """
+
+
+@schema
+class ScanStimType(dj.Manual):
+    definition = """
+    # scan stim type, visual or auditory
+    -> Scan
+    -> StimTypes
+    ---
+    speaker_id                  : int
+    calib_trial                 : int
+    piezostimulator_id          : int
+    scan_ts=CURRENT_TIMESTAMP   : timestamp         # don't edit
+    """
+
+
+@schema
+class ExperimentalIdentifier(dj.Manual):
+    definition = """
+    experiment_id        : int auto_increment
+    ---
+    -> [unique] Scan
+    """
 
 
 @schema

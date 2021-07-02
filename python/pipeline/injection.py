@@ -1,11 +1,13 @@
 """ Schemas for viral injections """
+import os
 import numpy as np
 import datajoint as dj
 from . import mice
 from .exceptions import PipelineException
 
 
-schema = dj.schema('pipeline_injection')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_injection')
 CURRENT_VERSION = 1
 
 

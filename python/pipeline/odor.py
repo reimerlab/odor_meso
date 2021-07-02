@@ -4,12 +4,13 @@ import os
 import datajoint as dj
 import numpy as np
 
-from . import mice, meso, lab, experiment
+from . import mice, meso, lab, experiment, shared
 from .utils import h5
 from .exceptions import PipelineException
 from DataMan import DataMan
 
-schema = dj.schema('pipeline_odor')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_odor')
 
 dj.config["enable_python_native_blobs"] = True
 
@@ -100,7 +101,7 @@ class OdorTrials(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         digital_filename = os.path.join(local_path, filename_base + '_D_%d.h5')
 
@@ -157,7 +158,7 @@ class OdorSync(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -221,7 +222,7 @@ class Respiration(dj.Imported):
 
         # Get olfactory h5 path and filename
         olfactory_path = (OdorSession & key).fetch1('odor_path')
-        local_path = os.environ.get('INGESTION_STORAGE') #lab.Paths().get_local_path(olfactory_path)
+        local_path = lab.Paths().get_local_path(olfactory_path)
         filename_base = (OdorRecording & key).fetch1('filename')
         analog_filename = os.path.join(local_path, filename_base + '_%d.h5')
 
@@ -261,6 +262,14 @@ class Respiration(dj.Imported):
 
 
 @schema
+class ScanTag(dj.Lookup):
+    definition = """
+    scan_tag:     varchar(24)
+    """
+    contents = zip(['habituation', 'multi-odor', 'single-odor'])
+
+
+@schema
 class MesoMatch(dj.Manual):
     definition = """ # Match between Odor Recording and Scan Session
     -> OdorRecording
@@ -268,104 +277,9 @@ class MesoMatch(dj.Manual):
     -> meso.ScanInfo
     """
 
-
-@schema
-class OdorAnalysis(dj.Computed):
-    definition = """
-    -> experiment.ExperimentalIdentifier
-    """
-
-    class CombinedTrial(dj.Part):
+    class ScanTag(dj.Part):
         definition = """
         -> master
-        (trial_idx) -> OdorTrials(trial_idx)
-        ---
-        trial_start_time        : float
-        trial_end_time          : float
-        odorant                 : varchar(64)
-        nozzles                 : tinyblob
-        duration                : int
-        start                   : float
-        stop                    : float
-        common                  : tinyblob
-        pre_stim                : tinyblob
-        odor_post               : tinyblob
-        pre_maxodor_post        : tinyblob
-        pre_odor_post           : tinyblob
-        odor                    : tinyblob
-        maxodor_post            : tinyblob
-        problems                : varchar(16)
+        -> ScanTag
         """
 
-    class Fluorescence(dj.Part):
-        definition = """
-        -> master
-        ---
-        raw_fluorescence        : longblob
-        f0s                     : longblob
-        f0_method               : varchar(32)
-        df_fs                   : longblob
-        """
-
-    class PlotIntegral(dj.Part):
-        definition = """
-        -> master
-        ---
-        n_unique_odor_combos    : int
-        autoscale_integrals     : tinyblob
-        odor_labels             : blob
-        glomeruli               : blob
-        response_integral       : blob
-        pos_criterion           : float
-        neg_criterion           : float
-        """
-
-    def make(self, key):
-        paths_init = os.path.join(os.environ.get('DATAPLOT_STORAGE'), 'paths.init')
-        dm = DataMan(paths_init=paths_init, expt_id=(key['experiment_id']-1))
-
-        entry_combinedtrial = []
-        for index, row in dm.pd_odor.iterrows():
-            entry_combinedtrial.append(dict(
-                **key,
-                trial_idx               = dm.pd_odor['trial_idx'][index],
-                trial_start_time        = dm.pd_odor['trial_start_time'][index],
-                trial_end_time          = dm.pd_odor['trial_end_time'][index],
-                odorant                 = dm.pd_odor['odorant'][index],
-                nozzles                 = dm.pd_odor['nozzles'][index],
-                duration                = dm.pd_odor['duration'][index],
-                start                   = dm.pd_odor['start'][index],
-                stop                    = dm.pd_odor['stop'][index],
-                common                  = dm.pd_odor['common'][index],
-                pre_stim                = dm.pd_odor['pre_stim'][index],
-                odor_post               = dm.pd_odor['odor_post'][index],
-                pre_maxodor_post        = dm.pd_odor['pre_maxodor_post'][index],
-                pre_odor_post           = dm.pd_odor['pre_odor_post'][index],
-                odor                    = dm.pd_odor['odor'][index],
-                maxodor_post            = dm.pd_odor['maxodor_post'][index],
-                problems                = dm.pd_odor['problems'][index]
-            ))
-
-        entry_fluorescence = dict(
-            **key,
-            raw_fluorescence        = dm.raw_fluorescence,
-            f0s                     = dm.f0s,
-            f0_method               = dm.f0_method,
-            df_fs                   = dm.df_fs
-        )
-
-        entry_plotintegral = dict(
-            **key,
-            n_unique_odor_combos    = dm.n_unique_odor_combos,
-            autoscale_integrals     = dm.autoscale_integrals,
-            odor_labels             = dm.odor_labels,
-            glomeruli               = dm.glomeruli,
-            response_integral       = dm.exp_dict["response_integral"],
-            pos_criterion           = dm.exp_dict["response_cand"]["stats"]["pos_criterion"],
-            neg_criterion           = dm.exp_dict["response_cand"]["stats"]["neg_criterion"]
-          )
-
-        self.insert1(key)
-        self.CombinedTrial.insert(entry_combinedtrial)
-        self.Fluorescence.insert1(entry_fluorescence)
-        self.PlotIntegral.insert1(entry_plotintegral)

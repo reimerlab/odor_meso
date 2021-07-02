@@ -1,6 +1,7 @@
 """ Schemas for resonant scanners."""
+import os
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
 import scanreader
@@ -10,7 +11,8 @@ from .utils import galvo_corrections, signal, quality, mask_classification, perf
 from .exceptions import PipelineException
 
 
-schema = dj.schema('pipeline_reso')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_reso')
 CURRENT_VERSION = 1
 
 
@@ -280,7 +282,7 @@ class Quality(dj.Computed):
     def notify(self, key, summary_frames, mean_intensities, contrasts):
         # Send summary frames
         import imageio
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         percentile_99th = np.percentile(summary_frames, 99.5)
         summary_frames = np.clip(summary_frames, None, percentile_99th)
         summary_frames = signal.float2uint8(summary_frames).transpose([2, 0, 1])
@@ -300,7 +302,7 @@ class Quality(dj.Computed):
         axes[1].plot(contrasts)
         axes[1].set_xlabel('Frames')
         axes[1].set_ylabel('Pixel intensities')
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -517,7 +519,7 @@ class MotionCorrection(dj.Computed):
             axes[i].set_xlabel('Seconds')
             axes[i].legend()
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -710,7 +712,7 @@ class SummaryImages(dj.Computed):
             axes[channel, 1].imshow(corr)
 
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1093,7 +1095,7 @@ class Segmentation(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key):
         fig = (Segmentation() & key).plot_masks()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1227,7 +1229,7 @@ class Fluorescence(dj.Computed):
     def notify(self, key):
         fig = plt.figure(figsize=(15, 4))
         plt.plot((Fluorescence() & key).get_all_traces().T)
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1309,7 +1311,7 @@ class MaskClassification(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key, mask_types):
         fig = (MaskClassification() & key).plot_masks()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1596,7 +1598,7 @@ class Activity(dj.Computed):
     def notify(self, key):
         fig = plt.figure(figsize=(15, 4))
         plt.plot((Activity() & key).get_all_spikes().T)
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 

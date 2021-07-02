@@ -2,6 +2,11 @@
 external*/
 data*/
 
+# DataMan
+paths.init
+uinit.init
+key.key
+
 # pipeline configuration
 .env*
 *.env

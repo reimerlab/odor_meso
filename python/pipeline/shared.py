@@ -1,8 +1,10 @@
 """ Lookup tables shared among multi-photon pipelines. """
 
+import os
 import datajoint as dj
 
-schema = dj.schema('pipeline_shared')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_shared')
 
 @schema
 class Field(dj.Lookup):
@@ -42,7 +44,8 @@ class SegmentationMethod(dj.Lookup):
         [3, 'nmf-patches', 'same as nmf but initialized in small image patches', 'python'],
         [4, 'nmf-boutons', 'nmf for axonal terminals', 'python'],
         [5, '3d-conv', 'masks from the segmentation of the stack', 'python'],
-        [6, 'nmf-new', 'same as method 3 (nmf-patches) but with some better tuned params', 'python']
+        [6, 'nmf-new', 'same as method 3 (nmf-patches) but with some better tuned params', 'python'],
+        [7, 'nmf-glomerulus', 'Based on suggestions from Andrea and Darcy', 'python']
     ]
 
 @schema
@@ -85,7 +88,8 @@ class MaskType(dj.Lookup):
         ['dendrite'],
         ['neuropil'],
         ['artifact'],
-        ['unknown']
+        ['unknown'],
+        ['glomerulus']
     ]
 
 @schema

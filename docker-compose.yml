@@ -8,55 +8,19 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      # - /mnt/:/mnt/
-      # - /home/pipeline_data/:/tmp/
       - .:/data/odor_meso/
       - ../DataPlot:/data/DataPlot/
-      - ${EXTERNAL_MOUNT:-./external}:/external
+      - ${EXTERNAL_MOUNT_MESO}:${MESO_STORAGE}
+      - ${EXTERNAL_MOUNT_STACK}:${STACK_STORAGE}
+      - ${EXTERNAL_MOUNT_SCRATCH10}:${SCRATCH10_STORAGE}
+      - ${EXTERNAL_MOUNT_SCRATCH08}:${SCRATCH08_STORAGE}
+      - /etc/localtime:/etc/localtime:ro
     env_file: .env
     entrypoint:
       - jupyter 
       - lab
       - --ip=0.0.0.0
+      - --port=8888
       - --allow-root
       - --NotebookApp.token=''
       - --no-browser
-
-  # this is run to actually dispatch pipeline
-  minion:
-    image: ninai/pipeline
-    volumes:
-      # - /mnt/:/mnt/
-      # - /home/pipeline_data:/tmp/
-      - .:/data/odor_meso
-    env_file: .env
-    entrypoint:
-      - python3 
-      - /data/pipeline/python/scripts/populate-minion.py
-
-
-  minion-gpu:
-    image: ninai/pipeline:tf-gpu
-    # runtime: nvidia
-    volumes:
-      #- /mnt/:/mnt/
-      #- /home/pipeline_data:/tmp/
-      - .:/data/odor_meso
-    env_file: .env
-    entrypoint:
-      - python3 
-      - /data/pipeline/python/scripts/populate-minion_gpu.py
-
-  bash:
-    image: ninai/stimulus-pipeline:latest
-    volumes:
-      #- /mnt/:/mnt/
-      #- /home/pipeline_data/:/tmp/
-      - .:/data/odor_meso
-      # this line allows local timezone of host to be
-      # reflected inside Docker
-      - /etc/localtime:/etc/localtime:ro
-      #- /tmp/.X11-unix:/tmp/.X11-unix
-    env_file: .env
-    entrypoint:
-      - /bin/bash

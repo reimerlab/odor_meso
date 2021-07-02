@@ -4,7 +4,8 @@ import multiprocessing as mp
 from caiman import components_evaluation
 from caiman.utils import visualization
 from caiman.source_extraction.cnmf import map_reduce, initialization, pre_processing, \
-                                          merging, spatial, temporal, deconvolution
+                                          merging, spatial, temporal, deconvolution, \
+                                          utilities, params
 import glob, os, sys, time
 
 
@@ -30,7 +31,8 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
                   merge_threshold=0.8, init_on_patches=True, init_method='greedy_roi',
                   soma_diameter=(14, 14), snmf_alpha=None, patch_size=(50, 50),
                   proportion_patch_overlap=0.2, num_components_per_patch=5,
-                  num_processes=8, num_pixels_per_process=5000, fps=15):
+                  num_processes=8, num_pixels_per_process=5000, fps=15,
+                  p=0, ssub=2, tsub=2):
     """ Extract masks from multi-photon scans using CNMF.
 
     Uses constrained non-negative matrix factorization to find spatial components (masks)
@@ -100,36 +102,36 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
         patch_overlap = np.int32(np.round(patch_size * proportion_patch_overlap))
 
         # Create options dictionary (needed for run_CNMF_patches)
-        options = {'patch_params': {'ssub': 'UNUSED.', 'tsub': 'UNUSED', 'nb': num_background_components,
-                                    'only_init': True, 'skip_refinement': 'UNUSED.',
-                                    'remove_very_bad_comps': False}, # remove_very_bads_comps unnecesary (same as default)
-                   'preprocess_params': {'check_nan': False}, # check_nan is unnecessary (same as default value)
-                   'spatial_params': {'nb': num_background_components}, # nb is unnecessary, it is pased to the function and in init_params
-                   'temporal_params': {'p': 0, 'method': 'UNUSED.', 'block_size': 'UNUSED.'},
-                   'init_params': {'K': num_components_per_patch, 'gSig': np.array(soma_diameter)/2,
-                                   'gSiz': None, 'method': init_method, 'alpha_snmf': snmf_alpha,
-                                   'nb': num_background_components, 'ssub': 1, 'tsub': max(int(fps / 2), 1),
-                                   'options_local_NMF': 'UNUSED.', 'normalize_init': True,
-                                   'rolling_sum': True, 'rolling_length': 100, 'min_corr': 'UNUSED',
-                                   'min_pnr': 'UNUSED', 'deconvolve_options_init': 'UNUSED',
-                                   'ring_size_factor': 'UNUSED', 'center_psf': 'UNUSED'},
-                                   # gSiz, ssub, tsub, options_local_NMF, normalize_init, rolling_sum unnecessary (same as default values)
-                   'merging' : {'thr': 'UNUSED.'}}
+        options = {'patch': {'only_init_patch': True,
+                             'rf': half_patch_size, 'stride': patch_overlap,
+                             'remove_very_bad_comps': False},
+                   'preprocess': {'check_nan': False},
+                   'temporal': {'p': p},
+                   'init': {'k': num_components_per_patch, 'gSig': np.array(soma_diameter)/2,
+                                   'gSiz': None, 'method_init': init_method, 'alpha_snmf': snmf_alpha,
+                                   'gnb': num_background_components, 'ssub': ssub, 'tsub': tsub,
+                                   'normalize_init': True,
+                                   'rolling_sum': True, 'rolling_length': 100}}
+        
+        options_flat = {}
+        for option_key in options:
+            options_flat.update(options[option_key])    
+        options_object =  params.CNMFParams(**options_flat)    
 
         # Initialize per patch
         res = map_reduce.run_CNMF_patches(mmap_scan.filename, (image_height, image_width, num_frames),
-                                          options, rf=half_patch_size, stride=patch_overlap,
-                                          gnb=num_background_components, dview=pool)
+                                          options_object, gnb=num_background_components, dview=pool)
         initial_A, initial_C, YrA, initial_b, initial_f, pixels_noise, _ = res
 
         # Merge spatially overlapping components
         merged_masks = ['dummy']
         while len(merged_masks) > 0:
-            res = merging.merge_components(mmap_scan, initial_A, initial_b, initial_C,
-                                           initial_f, initial_C, pixels_noise,
-                                           {'p': 0, 'method': 'cvxpy'}, spatial_params='UNUSED',
+            R = utilities.compute_residuals(mmap_scan, initial_A, initial_b, initial_C, initial_f)
+            res = merging.merge_components(mmap_scan, initial_A, initial_b, initial_C, R,
+                                           initial_f, initial_C, sn_pix=pixels_noise,
+                                           temporal_params = {'p': 0, 'method': 'cvxpy'}, spatial_params='UNUSED',
                                            dview=pool, thr=merge_threshold, mx=np.Inf)
-            initial_A, initial_C, num_components, merged_masks, S, bl, c1, neurons_noise, g = res
+            initial_A, initial_C, num_components, merged_masks, S, bl, c1, neurons_noise, g , _, R = res
 
         # Delete log files (one per patch)
         log_files = glob.glob('caiman*_LOG_*')
@@ -170,7 +172,7 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
     log('Updating masks...')
     A, b, C, f = spatial.update_spatial_components(mmap_scan, initial_C, initial_f, initial_A, b_in=initial_b,
                                                    sn=pixels_noise, dims=(image_height, image_width),
-                                                   method='dilate', dview=pool,
+                                                   method_exp='dilate', dview=pool,
                                                    n_pixels_per_process=num_pixels_per_process,
                                                    nb=num_background_components)
 
@@ -185,16 +187,18 @@ def extract_masks(scan, mmap_scan, num_components=200, num_background_components
     log('Merging overlapping (and temporally correlated) masks...')
     merged_masks = ['dummy']
     while len(merged_masks) > 0:
-        res = merging.merge_components(mmap_scan, A, b, C, f, S, pixels_noise, {'p': 0, 'method': 'cvxpy'},
-                                       'UNUSED', dview=pool, thr=merge_threshold, bl=bl, c1=c1,
+        R = utilities.compute_residuals(mmap_scan, A, b, C, f)
+        res = merging.merge_components(mmap_scan, A, b, C, R, f, S, sn_pix=pixels_noise, 
+                                       temporal_params={'p': 0, 'method': 'cvxpy'},
+                                       spatial_params='UNUSED', dview=pool, thr=merge_threshold, bl=bl, c1=c1,
                                        sn=neurons_noise, g=g)
-        A, C, num_components, merged_masks, S, bl, c1, neurons_noise, g = res
+        A, C, num_components, merged_masks, S, bl, c1, neurons_noise, g, _, R = res
 
     # Refine masks
     log('Refining masks...')
     A, b, C, f = spatial.update_spatial_components(mmap_scan, C, f, A, b_in=b, sn=pixels_noise,
                                                    dims=(image_height, image_width),
-                                                   method='dilate', dview=pool,
+                                                   method_exp='dilate', dview=pool,
                                                    n_pixels_per_process=num_pixels_per_process,
                                                    nb=num_background_components)
 

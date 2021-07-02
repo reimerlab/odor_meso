@@ -1,17 +1,31 @@
 """ Schemas for mesoscope scans."""
+import os
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 import scanreader
+from scipy.interpolate import griddata
+import h5py
+from tqdm import tqdm
 
 from . import experiment, injection, notify, shared
 from .utils import galvo_corrections, signal, quality, mask_classification, performance
 from .exceptions import PipelineException
 
+os.environ['DJ_SUPPORT_FILEPATH_MANAGEMENT']='True'
+os.environ['FILEPATH_FEATURE_SWITCH']='True'
 
-schema = dj.schema('pipeline_meso')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_meso')
 CURRENT_VERSION = 1
+
+dj.config['stores'] = {'meso_storage': {'location': os.environ.get('MESO_STORAGE','/data/external/meso_storage'),
+                                        'protocol': 'file' 
+                                       }
+                      }
+dj.config["enable_python_native_blobs"] = True
 
 
 @schema
@@ -278,7 +292,7 @@ class Quality(dj.Computed):
     def notify(self, key, summary_frames, mean_intensities, contrasts):
         # Send summary frames
         import imageio
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         percentile_99th = np.percentile(summary_frames, 99.5)
         summary_frames = np.clip(summary_frames, None, percentile_99th)
         summary_frames = signal.float2uint8(summary_frames).transpose([2, 0, 1])
@@ -298,7 +312,7 @@ class Quality(dj.Computed):
         axes[1].plot(contrasts)
         axes[1].set_xlabel('Frames')
         axes[1].set_ylabel('Pixel intensities')
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -306,6 +320,13 @@ class Quality(dj.Computed):
                'channel {channel}').format(**key)
         slack_user.notify(file=img_filename, file_title=msg)
 
+@schema
+class QualityManualCuration(dj.Manual):
+    definition = """ # manually specify quality of data
+    -> ScanInfo
+    ---
+    quality_flag    : bool
+    """
 
 @schema
 class CorrectionChannel(dj.Manual):
@@ -499,7 +520,7 @@ class MotionCorrection(dj.Computed):
             axes[i].set_xlabel('Seconds')
             axes[i].legend()
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -577,9 +598,6 @@ class MotionCorrection(dj.Computed):
 
         return lambda scan, indices=slice(None): galvo_corrections.correct_motion(scan,
                                                  x_shifts[indices], y_shifts[indices])
-
-
-
 
 
 @schema
@@ -694,7 +712,7 @@ class SummaryImages(dj.Computed):
             axes[channel, 1].imshow(corr)
 
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -862,8 +880,20 @@ class Segmentation(dj.Computed):
             y_shifts, x_shifts = (MotionCorrection() & key).fetch1('y_shifts', 'x_shifts')
             kwargs = {'raster_phase': raster_phase, 'fill_fraction': fill_fraction,
                       'y_shifts': y_shifts, 'x_shifts': x_shifts, 'mmap_scan': mmap_scan}
-            results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
-                                             kwargs=kwargs)
+            
+            if key['segmentation_method'] == 7: # For glomeruli segmentation, apply spatial and/or temporal median filter
+                px_height, px_width, um_height, um_width = (ScanInfo.Field() & key).fetch1('px_height', 'px_width', 'um_height', 'um_width')
+                
+                kernel_x = math.floor(15 / (um_width/px_width)) # [pixels] Estimated for a size of 15 um
+                kernel_y = math.floor(15 / (um_height/px_height)) # [pixels] Estimated for a size of 15 um
+                kernel_t = 1 # [frames]
+
+                results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
+                                                 kwargs=kwargs, 
+                                                 scan_filter=True, kernel_x=kernel_x, kernel_y=kernel_y, kernel_t=kernel_t)
+            else:
+                results = performance.map_frames(f, scan, field_id=field_id, channel=channel,
+                                                 kwargs=kwargs)
 
             # Reduce: Use the minimum values to make memory mapped scan nonnegative
             mmap_scan -= np.min(results)  # bit inefficient but necessary
@@ -895,6 +925,19 @@ class Segmentation(dj.Computed):
                     kwargs['num_components'] = (SegmentationTask() & key).estimate_num_components()
                     kwargs['init_method'] = 'greedy_roi'
                     kwargs['soma_diameter'] = tuple(14 / (ScanInfo.Field() & key).microns_per_pixel)
+            elif key['segmentation_method'] == 7: # glomerulus
+                kwargs['init_on_patches'] = True
+                kwargs['p'] = 1
+                kwargs['num_background_components'] = 2     # gnb
+                kwargs['merge_threshold'] = 0.85            # merge_thr
+                kwargs['patch_size'] = (30, 30)             # rf 15
+                kwargs['proportion_patch_overlap'] = 0.2    # patch_overlap -> stride_cnmf 6
+                kwargs['num_components_per_patch'] = 4      # K
+                kwargs['soma_diameter'] = (8, 8)            # gSig [4,4]
+                kwargs['init_method'] = 'greedy_roi'        # method_init
+                kwargs['ssub'] = 2
+                kwargs['tsub'] = 2
+                kwargs['snmf_alpha'] = 100                  # Required because of error in source_extraction/cnmf/initialization.py if set to `None`
             else: #nmf-new
                 kwargs['init_on_patches'] = True
                 kwargs['proportion_patch_overlap'] = 0.2 # 20% overlap
@@ -915,7 +958,7 @@ class Segmentation(dj.Computed):
                     kwargs['soma_diameter'] = tuple(8 / (ScanInfo.Field() & key).microns_per_pixel)
 
             ## Set performance/execution parameters (heuristically), decrease if memory overflows
-            kwargs['num_processes'] = 1#8  # Set to None for all cores available
+            kwargs['num_processes'] = 8  # Set to None for all cores available
             kwargs['num_pixels_per_process'] = 10000
 
             # Extract traces
@@ -1069,7 +1112,7 @@ class Segmentation(dj.Computed):
         # Create masks
         if key['segmentation_method'] == 1:  # manual
             Segmentation.Manual().make(key)
-        elif key['segmentation_method'] in [2, 6]:  # nmf
+        elif key['segmentation_method'] in [2, 6, 7]:  # nmf
             self.insert1(key)
             Segmentation.CNMF().make(key)
         elif key['segmentation_method'] in [3, 4]: # nmf_patches, nmf-boutons
@@ -1082,7 +1125,7 @@ class Segmentation(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key):
         fig = (Segmentation() & key).plot_masks()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1186,7 +1229,7 @@ class Fluorescence(dj.Computed):
         field_id = key['field'] - 1
         channel = key['channel'] - 1
         scan_filename = (experiment.Scan() & key).local_filenames_as_wildcard
-        scan = scanreader.read_scan('/data/odor_meso/' + scan_filename)
+        scan = scanreader.read_scan(scan_filename)
 
         # Map: Extract traces
         print('Creating fluorescence traces...')
@@ -1215,7 +1258,7 @@ class Fluorescence(dj.Computed):
     def notify(self, key):
         fig = plt.figure(figsize=(15, 4))
         plt.plot((Fluorescence() & key).get_all_traces().T)
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1267,19 +1310,25 @@ class MaskClassification(dj.Computed):
         masks = Segmentation.reshape_masks(pixels, weights, image_height, image_width)
 
         # Classify masks
-        if key['classification_method'] == 1:  # manual
-            if not SummaryImages() & key:
-                msg = 'Need to populate SummaryImages before manual mask classification'
-                raise PipelineException(msg)
+        print('Currently only implemented for classification of manually segmented glomeruli masks.')
+        if key['segmentation_method'] == 1 and key['classification_method'] == 1:
+            mask_types = ['glomerulus' for mask_id in mask_ids.flat]
+        elif key['segmentation_method'] == 7:
+            raise NotImplementedError('Glomeruli classification is not currently implemented for CNMF segmentation.')
 
-            template = (SummaryImages.Correlation() & key).fetch1('correlation_image')
-            masks = masks.transpose([2, 0, 1])  # num_masks, image_height, image_width
-            mask_types = mask_classification.classify_manual(masks, template)
-        elif key['classification_method'] == 2:  # cnn-caiman
-            from .utils import caiman_interface as cmn
-            soma_diameter = tuple(14 / (ScanInfo.Field() & key).microns_per_pixel)
-            probs = cmn.classify_masks(masks, soma_diameter)
-            mask_types = ['soma' if prob > 0.75 else 'artifact' for prob in probs]
+        # if key['classification_method'] == 1:  # manual
+        #     if not SummaryImages() & key:
+        #         msg = 'Need to populate SummaryImages before manual mask classification'
+        #         raise PipelineException(msg)
+
+        #     template = (SummaryImages.Correlation() & key).fetch1('correlation_image')
+        #     masks = masks.transpose([2, 0, 1])  # num_masks, image_height, image_width
+        #     mask_types = mask_classification.classify_manual(masks, template)
+        # elif key['classification_method'] == 2:  # cnn-caiman
+        #     from .utils import caiman_interface as cmn
+        #     soma_diameter = tuple(14 / (ScanInfo.Field() & key).microns_per_pixel)
+        #     probs = cmn.classify_masks(masks, soma_diameter)
+        #     mask_types = ['soma' if prob > 0.75 else 'artifact' for prob in probs]
         else:
             msg = 'Unrecognized classification method {}'.format(key['classification_method'])
             raise PipelineException(msg)
@@ -1296,7 +1345,7 @@ class MaskClassification(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key, mask_types):
         fig = (MaskClassification() & key).plot_masks()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1582,7 +1631,7 @@ class Activity(dj.Computed):
     def notify(self, key):
         fig = plt.figure(figsize=(15, 4))
         plt.plot((Activity() & key).get_all_spikes().T)
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -1657,7 +1706,7 @@ class ScanDone(dj.Computed):
     class Partial(dj.Part):
         definition = """ # fields that have been processed in the current scan
 
-        -> ScanDone
+        -> master
         -> Activity
         """
 

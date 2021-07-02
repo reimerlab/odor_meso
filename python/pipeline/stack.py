@@ -1,6 +1,7 @@
 """ Schemas for structural stacks. """
+import os
 import datajoint as dj
-from datajoint.hash import hash_key_values
+from datajoint.hash import key_hash
 import matplotlib.pyplot as plt
 import numpy as np
 import scanreader
@@ -22,11 +23,13 @@ Our stack/motor coordinate system is consistent with numpy's: z in the first axi
 downwards, y in the second axis pointing towards you and x on the third axis pointing to 
 the right.
 """
-dj.config['stores'] = {'stack_storage': {'protocol': 'file', 'location': os.environ.get('STACK_STORAGE','/external/stack_storage')}}
+dj.config['stores'] = {'stack_storage': {'protocol': 'file', 'location': os.environ.get('STACK_STORAGE','/data/external/stack_storage')}}
 dj.config['cache'] = '/tmp/dj-cache'
+dj.config["enable_python_native_blobs"] = True
 
 
-schema = dj.schema('pipeline_stack')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_stack')
 
 
 @schema
@@ -247,7 +250,7 @@ class Quality(dj.Computed):
     def notify(self, key, summary_frames, mean_intensities, contrasts):
         # Send summary frames
         import imageio
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         percentile_99th = np.percentile(summary_frames, 99.5)
         summary_frames = np.clip(summary_frames, None, percentile_99th)
         summary_frames = float2uint8(summary_frames).transpose([2, 0, 1])
@@ -269,7 +272,7 @@ class Quality(dj.Computed):
         axes[1].set_title('Contrast (99 - 1 percentile)', size='small')
         axes[1].imshow(contrasts)
         axes[1].set_xlabel('Frames')
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename, bbox_inches='tight')
         plt.close(fig)
 
@@ -445,7 +448,7 @@ class MotionCorrection(dj.Computed):
         axes[1].set_xlabel('Seconds')
         axes[1].plot(seconds, x_shifts.T)
         fig.tight_layout()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename)
         plt.close(fig)
 
@@ -720,7 +723,7 @@ class Stitching(dj.Computed):
                 axes[0].set_ylabel('Pixels')
                 axes[0].set_xlabel('Depths')
                 fig.tight_layout()
-                img_filename = '/tmp/' + hash_key_values(key) + '.png'
+                img_filename = '/tmp/' + key_hash(key) + '.png'
                 fig.savefig(img_filename, bbox_inches='tight')
                 plt.close(fig)
 
@@ -865,7 +868,7 @@ class CorrectedStack(dj.Computed):
 
         volume = (self & key).get_stack(channel=key['channel'])
         volume = volume[:: int(volume.shape[0] / 8)]  # volume at 8 diff depths
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         imageio.mimsave(video_filename, float2uint8(volume), duration=1)
 
         msg = ('corrected stack for {animal_id}-{session}-{stack_idx} volume {volume_id} '
@@ -1253,7 +1256,7 @@ class Segmentation(dj.Computed):
         volume = (self & key).fetch1('segmentation')
         volume = volume[:: int(volume.shape[0] / 8)]  # volume at 8 diff depths
         colored = utils.colorize_label(volume)
-        video_filename = '/tmp/' + hash_key_values(key) + '.gif'
+        video_filename = '/tmp/' + key_hash(key) + '.gif'
         imageio.mimsave(video_filename, colored, duration=1)
 
         msg = 'segmentation for {animal_id}-{session}-{stack_idx}'.format(**key)
@@ -2268,7 +2271,7 @@ class RegistrationOverTime(dj.Computed):
         plt.title('Registration over time (star size represents confidence)')
         plt.ylabel('z (surface at 0)')
         plt.xlabel('Frames')
-        img_filename = '/tmp/{}.png'.format(hash_key_values(key))
+        img_filename = '/tmp/{}.png'.format(key_hash(key))
         plt.savefig(img_filename)
         plt.close()
 
@@ -2456,7 +2459,7 @@ class StackSet(dj.Computed):
     def key_source(self):
         return (CorrectedStack.proj(stack_session='session') *
                 shared.RegistrationMethod.proj() * shared.SegmentationMethod.proj() &
-                Registration & {'segmentation_method': 6})
+                Registration & {'segmentation_method': 1})
 
     class Unit(dj.Part):
         definition = """ # a unit in the stack
@@ -2531,14 +2534,14 @@ class StackSet(dj.Computed):
             # Create cell objects
             for channel_key in (pipe.ScanSet & field_key &
                                 {'segmentation_method': key['segmentation_method']}):  # *
-                somas = pipe.MaskClassification.Type & {'type': 'soma'}
-                field_somas = pipe.ScanSet.Unit & channel_key & somas
-                unit_keys, xs, ys = (pipe.ScanSet.UnitInfo & field_somas).fetch('KEY',
+                glomerulus = pipe.MaskClassification.Type & {'type': 'glomerulus'}
+                field_glomerulus = pipe.ScanSet.Unit & channel_key & glomerulus
+                unit_keys, xs, ys = (pipe.ScanSet.UnitInfo & field_glomerulus).fetch('KEY',
                         'px_x', 'px_y')
                 px_coords = np.stack([ys, xs])
                 xs, ys, zs = [ndimage.map_coordinates(grid[..., i], px_coords, order=1)
                               for i in range(3)]
-                units += [StackSet.MatchedUnit(*args, hash_key_values(channel_key)) for args in
+                units += [StackSet.MatchedUnit(*args, key_hash(channel_key)) for args in
                           zip(unit_keys, xs, ys, zs)]
             # * Separating masks per channel allows masks in diff channels to be matched
         print(len(units), 'initial units')
@@ -2610,7 +2613,7 @@ class StackSet(dj.Computed):
     @notify.ignore_exceptions
     def notify(self, key):
         fig = (StackSet() & key).plot_centroids3d()
-        img_filename = '/tmp/' + hash_key_values(key) + '.png'
+        img_filename = '/tmp/' + key_hash(key) + '.png'
         fig.savefig(img_filename)
         plt.close(fig)
 
@@ -2685,7 +2688,7 @@ class Area(dj.Computed):
         import cv2
 
         #same as key source but retains brain area attribute
-        key['ret_hash'] = hash_key_values(key)
+        key['ret_hash'] = key_hash(key)
         map_rel = (anatomy.AreaMask.proj('ret_idx', scan_session='session') &
                    (experiment.Scan & 'aim="2pScan"').proj(stack_session='session'))
         stack_rel = Registration & 'registration_method = 5'

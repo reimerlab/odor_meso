@@ -1,4 +1,5 @@
 """ Schemas specific to platinum mice. Not the cleanest design/code"""
+import os
 import datajoint as dj
 import numpy as np
 from scipy import ndimage
@@ -6,7 +7,8 @@ from scipy import ndimage
 from . import meso, stack
 
 
-schema = dj.schema('pipeline_fastmeso')
+dj.config['database.prefix'] = os.environ.get('DJ_PREFIX', '')
+schema = dj.schema(dj.config['database.prefix'] + 'pipeline_fastmeso')
 
 
 @schema
