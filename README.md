@@ -31,8 +31,6 @@
 
 ### Step 4 - Customize `docker-compose.yml`
 
-+ Under `services`, add your username to `notebook_<username>`
-
 + Under `ports: HOST:CONTAINER`, if the `HOST` port is in use you will need to change this port.
 
 ### Step 5 - Build the Docker image
